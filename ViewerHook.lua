@@ -1,11 +1,5 @@
 local addonName, BM = ...
 
---[[
-    ViewerHook: mirrors Blizzard 12.0 CooldownViewer icons.
-    Buff section merges both BuffIconCooldownViewer + BuffBarCooldownViewer.
-    Supports Masque, per-section toggle, reorderable layout.
-]]
-
 local VIEWERS = BM.VIEWERS
 
 local hookedViewers = {}
@@ -14,7 +8,6 @@ local prevActiveBuffs = {}
 
 local containers = {}
 
--- Section definitions
 local SECTION_SIZES = {
     buff      = 26,
     essential = 30,
@@ -25,7 +18,6 @@ local SECTION_SIZES = {
 
 local ICON_PAD = 1
 
--- Which Blizzard viewers feed into which section
 local BUFF_VIEWERS = { VIEWERS.BUFF, VIEWERS.BUFF_BAR }
 local SECTION_VIEWERS = {
     buff      = BUFF_VIEWERS,
@@ -33,10 +25,8 @@ local SECTION_VIEWERS = {
     utility   = { VIEWERS.UTILITY },
 }
 
--- Flat list of all viewers we hook
 local ALL_VIEWER_NAMES = { VIEWERS.ESSENTIAL, VIEWERS.UTILITY, VIEWERS.BUFF, VIEWERS.BUFF_BAR }
 
--- Reverse: viewer -> section
 local VIEWER_TO_SECTION = {}
 for section, viewers in pairs(SECTION_VIEWERS) do
     for _, vn in ipairs(viewers) do
@@ -44,10 +34,8 @@ for section, viewers in pairs(SECTION_VIEWERS) do
     end
 end
 
--- Per-section icon pool (not per-viewer)
 local sectionIcons = {}
 
--- Masque
 local MSQ = LibStub and LibStub("Masque", true) or nil
 local masqueGroups = {}
 local iconCounter = 0
@@ -102,11 +90,13 @@ local function IsFrameActive(frame)
     return frame:IsShown()
 end
 
+-- Use plain Frame (not Button) to avoid combat taint and unwanted click sounds.
+-- Masque still works via explicit ButtonData regions.
 local function CreateMirrorIcon(parent, size, section)
     iconCounter = iconCounter + 1
-    local btnName = "badomeowIcon" .. iconCounter
+    local fName = "badomeowIcon" .. iconCounter
 
-    local f = CreateFrame("Button", btnName, parent)
+    local f = CreateFrame("Frame", fName, parent)
     f:SetSize(size, size)
     f:SetFrameLevel(parent:GetFrameLevel() + 2)
 
@@ -115,18 +105,17 @@ local function CreateMirrorIcon(parent, size, section)
     f.icon:SetPoint("BOTTOMRIGHT", -ICON_PAD, ICON_PAD)
     f.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
-    f.cooldown = CreateFrame("Cooldown", btnName .. "Cooldown", f, "CooldownFrameTemplate")
+    f.cooldown = CreateFrame("Cooldown", fName .. "Cooldown", f, "CooldownFrameTemplate")
     f.cooldown:SetAllPoints(f.icon)
     f.cooldown:SetDrawEdge(true)
     f.cooldown:SetHideCountdownNumbers(false)
+    if f.cooldown.SetMuteAudio then f.cooldown:SetMuteAudio(true) end
     f.cd = f.cooldown
 
-    local normalTex = f:CreateTexture(nil, "BORDER")
-    normalTex:SetAllPoints()
-    normalTex:SetTexture("Interface\\Buttons\\UI-Quickslot2")
-    normalTex:SetTexCoord(0, 1, 0, 1)
-    f:SetNormalTexture(normalTex)
-    f.NormalTexture = normalTex
+    f.NormalTexture = f:CreateTexture(nil, "BORDER")
+    f.NormalTexture:SetAllPoints()
+    f.NormalTexture:SetTexture("Interface\\Buttons\\UI-Quickslot2")
+    f.NormalTexture:SetTexCoord(0, 1, 0, 1)
 
     f.glow = f:CreateTexture(nil, "OVERLAY", nil, 2)
     f.glow:SetPoint("TOPLEFT", -4, 4)
@@ -153,7 +142,6 @@ local function CreateMirrorIcon(parent, size, section)
             Flash = false, Backdrop = false, Name = false,
             Count = false, Duration = false, HotKey = false, AutoCast = false,
         }, "Action")
-        f._masqueGroup = group
     end
 
     f:Hide()
@@ -243,8 +231,23 @@ function BM.LayoutAll()
     BM.MainFrame:SetSize(w, math.max(y, 20))
 end
 
--- Collect all active Blizzard frames from the viewer(s) that feed a section,
--- then create/update mirror icons sequentially in one container.
+-- Pre-allocate icon pool per section to avoid CreateFrame during combat
+local PREALLOC = { essential = 12, buff = 10, utility = 10 }
+
+local function PreallocateIcons()
+    for section, count in pairs(PREALLOC) do
+        local container = EnsureContainer(section)
+        if container then
+            if not sectionIcons[section] then sectionIcons[section] = {} end
+            local icons = sectionIcons[section]
+            local size = SECTION_SIZES[section] or 24
+            for i = #icons + 1, count do
+                icons[i] = CreateMirrorIcon(container, size, section)
+            end
+        end
+    end
+end
+
 local function RefreshSection(section, skipLayout)
     local container = EnsureContainer(section)
     if not container then return end
@@ -255,7 +258,6 @@ local function RefreshSection(section, skipLayout)
     if not sectionIcons[section] then sectionIcons[section] = {} end
     local icons = sectionIcons[section]
 
-    -- Reset all icons
     for _, ic in ipairs(icons) do
         ic:Hide()
         if ic.glow then ic.glow:Hide() end
@@ -264,11 +266,10 @@ local function RefreshSection(section, skipLayout)
 
     if not IsSectionEnabled(section) then
         container:Hide()
-        BM.LayoutAll()
+        if not skipLayout then BM.LayoutAll() end
         return
     end
 
-    -- Gather all source frames from every viewer feeding this section
     local sourceFrames = {}
     local viewers = SECTION_VIEWERS[section]
     if viewers then
@@ -296,8 +297,12 @@ local function RefreshSection(section, skipLayout)
 
         local ic = icons[idx]
         if not ic then
-            ic = CreateMirrorIcon(container, size, section)
-            icons[idx] = ic
+            if not InCombatLockdown() then
+                ic = CreateMirrorIcon(container, size, section)
+                icons[idx] = ic
+            else
+                break
+            end
         end
         ic:SetSize(size, size)
 
@@ -352,12 +357,9 @@ local function RefreshSection(section, skipLayout)
     else
         container:Hide()
     end
-    if not skipLayout then
-        BM.LayoutAll()
-    end
+    if not skipLayout then BM.LayoutAll() end
 end
 
--- When any viewer fires, refresh the entire section it belongs to
 local function OnViewerChanged(viewerName)
     local section = VIEWER_TO_SECTION[viewerName]
     if section then RefreshSection(section) end
@@ -416,7 +418,6 @@ local function HookMixins()
     hookedMixins.done = true
 end
 
--- Periodic fallback: refresh each section once (not per-viewer)
 local ALL_ICON_SECTIONS = { "essential", "buff", "utility" }
 local refreshTimer = 0
 local refreshFrame = CreateFrame("Frame")
@@ -426,8 +427,9 @@ refreshFrame:SetScript("OnUpdate", function(self, elapsed)
     refreshTimer = 0
     if not BM.MainFrame or not BM.MainFrame:IsShown() then return end
     for _, section in ipairs(ALL_ICON_SECTIONS) do
-        RefreshSection(section)
+        RefreshSection(section, true)
     end
+    BM.LayoutAll()
 end)
 
 function BM.SwapSectionOrder(sectionKey, direction)
@@ -445,6 +447,7 @@ function BM.SwapSectionOrder(sectionKey, direction)
 end
 
 function BM.InitViewerHooks()
+    PreallocateIcons()
     for _, vName in ipairs(ALL_VIEWER_NAMES) do HookViewer(vName) end
     HookMixins()
     BM.LayoutAll()
