@@ -62,7 +62,7 @@ end
 -- ==========================================
 local function DetectFormOverride()
     local formID = GetShapeshiftFormID()
-    if formID == CAT_FORM then
+    if formID == FORM_CAT then
         return {
             powerType = Enum.PowerType.Energy,
             secondaryPower = Enum.PowerType.ComboPoints,
@@ -70,7 +70,7 @@ local function DetectFormOverride()
             powerLabel = "能量",
             secondaryLabel = "连击点",
         }
-    elseif formID == BEAR_FORM then
+    elseif formID == FORM_BEAR then
         return {
             powerType = Enum.PowerType.Rage,
             secondaryPower = nil,
@@ -364,15 +364,9 @@ EventFrame:SetScript("OnEvent", function(self, event, arg1)
 end)
 
 -- ==========================================
--- Slash commands
--- Registered at file scope so they're available immediately.
--- Using a unique hash key to avoid any conflict.
+-- Slash commands (MRT/DBM pattern: handler first, then SLASH_ vars)
 -- ==========================================
-SLASH_BADOMEOW1 = "/bdm"
-SLASH_BADOMEOW2 = "/badomeow"
-SLASH_BADOMEOW3 = "/baomeow"
-SLASH_BADOMEOW4 = "/bado"
-SlashCmdList.BADOMEOW = function(msg)
+SlashCmdList["BADOMEOW"] = function(msg)
     if not isDruid then
         print("|cFFFF5555badomeow:|r 此插件仅适用于德鲁伊职业")
         return
@@ -416,3 +410,7 @@ SlashCmdList.BADOMEOW = function(msg)
         end
     end
 end
+SLASH_BADOMEOW1 = "/bdm"
+SLASH_BADOMEOW2 = "/badomeow"
+SLASH_BADOMEOW3 = "/baomeow"
+SLASH_BADOMEOW4 = "/bado"

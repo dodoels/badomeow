@@ -254,7 +254,7 @@ end
 
 -- ==========================================
 -- Register into ESC > Options > AddOns
--- Uses multiple methods for compatibility
+-- Follows MRT pattern: RegisterCanvasLayoutCategory + RegisterAddOnCategory
 -- ==========================================
 function BM.InitSettings()
     if settingsRegistered then return end
@@ -263,44 +263,24 @@ function BM.InitSettings()
     L = BM.L or {}
     local panel = CreateOptionsPanel()
 
-    -- Method 1: Modern Settings API (12.0+)
-    local ok, err = pcall(function()
-        local category = Settings.RegisterCanvasLayoutSubcategory(
-            Settings.GetCategory("InterfaceOptions") or Settings.RegisterCanvasLayoutCategory(panel, panel.name),
-            panel,
-            panel.name
-        )
+    if SettingsPanel then
+        local category = Settings.RegisterCanvasLayoutCategory(panel, "badomeow")
+        Settings.RegisterAddOnCategory(category)
         BM.settingsCategory = category
-    end)
-
-    -- Method 2: Simpler modern registration
-    if not ok then
-        ok, err = pcall(function()
-            local category, _ = Settings.RegisterCanvasLayoutCategory(panel, panel.name)
-            Settings.RegisterAddOnCategory(category)
-            BM.settingsCategory = category
-        end)
-    end
-
-    -- Method 3: Legacy fallback
-    if not ok then
-        pcall(function()
-            if InterfaceOptions_AddCategory then
-                InterfaceOptions_AddCategory(panel)
-            end
-        end)
+    elseif InterfaceOptions_AddCategory then
+        InterfaceOptions_AddCategory(panel)
     end
 
     BM.optionsPanel = panel
 end
 
 function BM.OpenSettings()
-    -- Try modern Settings API first
     if BM.settingsCategory then
-        pcall(function() Settings.OpenToCategory(BM.settingsCategory) end)
+        Settings.OpenToCategory(BM.settingsCategory.ID)
         return
     end
-    -- Legacy fallback
-    pcall(function() InterfaceOptionsFrame_OpenToCategory(BM.optionsPanel) end)
-    pcall(function() InterfaceOptionsFrame_OpenToCategory(BM.optionsPanel) end)
+    if BM.optionsPanel and InterfaceOptionsFrame_OpenToCategory then
+        InterfaceOptionsFrame_OpenToCategory(BM.optionsPanel)
+        InterfaceOptionsFrame_OpenToCategory(BM.optionsPanel)
+    end
 end
