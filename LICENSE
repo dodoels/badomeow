@@ -2,6 +2,8 @@ MIT License
 
 Copyright (c) 2026 ForFeralSake contributors
 
+本插件由 BILIBILI@SOSO财高八抖 四处搜刮纯AI沥尽心血毫无原创打造而成
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
@@ -20,24 +22,33 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
----
+===============================================================================
+  致谢 / CREDITS & ATTRIBUTIONS
+===============================================================================
 
-INSPIRATIONS & CREDITS:
+本项目参考、借鉴了以下开源项目，在此向各位作者致以诚挚的敬意：
 
-This project drew inspiration from the following open-source projects:
+1. Ayije_CDM
+   作者: Ayije
+   来源: https://addons.wago.io/addons/ayijecdm
+   说明: WoW 12.0 CooldownViewer hook 模式的核心参考，secret value 处理、
+         容器管理、reparent 策略均源于此插件的实现思路。
 
-- Ayije_CDM
-  The primary reference for WoW 12.0 CooldownViewer hooking patterns,
-  secret value handling, and container management.
+2. WeakAuras2
+   作者: Buds, Infus, Rivers, Stanzilla 及 WeakAuras 社区
+   来源: https://github.com/WeakAuras/WeakAuras2
+   协议: GNU GPL v2
+   说明: WoW 战斗显示框架的黄金标准。虽然在 12.0 中因 API 限制已无法使用，
+         但其可定制战斗显示的设计哲学深刻影响了本插件。
 
-- WeakAuras2 (https://github.com/WeakAuras/WeakAuras2)
-  License: GNU GPL v2
-  The gold standard for WoW combat display frameworks.
+3. SenseiClassResourceBar
+   作者: Snsei987
+   来源: https://github.com/Snsei987/SenseiClassResourceBar
+   协议: MIT
+   说明: 一个简洁现代的 WoW 12.0 资源条插件。本插件的资源条架构、
+         12.0 兼容模式、Settings API 用法均参考于此。
 
-- SenseiClassResourceBar (https://github.com/Snsei987/SenseiClassResourceBar)
-  License: MIT
-  A clean, modern resource bar addon for WoW 12.0.
-
-- Arc UI (https://github.com/devdeadviz/arc-ui)
-  A styling framework whose component-based design approach inspired
-  the modular UI structure.
+4. Arc UI
+   作者: devdeadviz
+   来源: https://github.com/devdeadviz/arc-ui
+   说明: 组件化 UI 设计框架，其模块化设计思路启发了本插件的 UI 结构。
