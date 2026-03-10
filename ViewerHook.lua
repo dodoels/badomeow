@@ -70,47 +70,69 @@ local function GetPosKey(section) return "pos_" .. section end
 local function SaveSectionPos(section)
     local f = sectionFrames[section]
     if not f then return end
-    local _, _, _, x, y = f:GetPoint()
+    local _, _, relTo, x, y = f:GetPoint()
     if not BM.db[GetPosKey(section)] then BM.db[GetPosKey(section)] = {} end
     BM.db[GetPosKey(section)].x = x
     BM.db[GetPosKey(section)].y = y
+end
+
+-- Convert frame position to CENTER-relative offset after StopMovingOrSizing
+-- WoW changes the anchor after dragging, so we normalize back to CENTER
+local function NormalizeToCenterOffset(frame)
+    local scale = frame:GetEffectiveScale()
+    local parentScale = UIParent:GetEffectiveScale()
+    local screenW, screenH = UIParent:GetSize()
+    local cx = frame:GetLeft() * scale / parentScale + (frame:GetWidth() * scale / parentScale) / 2
+    local cy = frame:GetBottom() * scale / parentScale + (frame:GetHeight() * scale / parentScale) / 2
+    local offX = cx - screenW / 2
+    local offY = cy - screenH / 2
+    frame:ClearAllPoints()
+    frame:SetPoint("CENTER", UIParent, "CENTER", offX, offY)
+    return offX, offY
 end
 
 local function MakeDraggable(frame, section)
     frame:SetMovable(true)
     frame:EnableMouse(true)
     frame:RegisterForDrag("LeftButton")
-    frame._dragStartX = nil
-    frame._dragStartY = nil
+    frame._dragStartCX = nil
+    frame._dragStartCY = nil
     frame:SetScript("OnDragStart", function(self)
         if not BM.db.locked and not InCombatLockdown() then
-            -- Record start position for shift-drag (move all)
-            local _, _, _, sx, sy = self:GetPoint()
-            self._dragStartX = sx
-            self._dragStartY = sy
+            local pos = BM.db[GetPosKey(section)]
+            if pos then
+                self._dragStartCX = pos.x
+                self._dragStartCY = pos.y
+            end
             self:StartMoving()
         end
     end)
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        local _, _, _, ex, ey = self:GetPoint()
+        local newX, newY = NormalizeToCenterOffset(self)
+
         local moveAll = IsShiftKeyDown() or BM.db.globalMove
-        if moveAll and self._dragStartX and self._dragStartY then
-            local dx = ex - self._dragStartX
-            local dy = ey - self._dragStartY
+        if moveAll and self._dragStartCX and self._dragStartCY then
+            local dx = newX - self._dragStartCX
+            local dy = newY - self._dragStartCY
             for _, sec in ipairs(BM.SECTIONS) do
                 local sf = sectionFrames[sec]
                 if sf and sf ~= self then
-                    local _, _, _, ox, oy = sf:GetPoint()
-                    sf:ClearAllPoints()
-                    sf:SetPoint("CENTER", UIParent, "CENTER", ox + dx, oy + dy)
-                    SaveSectionPos(sec)
+                    local p = BM.db[GetPosKey(sec)]
+                    if p then
+                        local nx = p.x + dx
+                        local ny = p.y + dy
+                        sf:ClearAllPoints()
+                        sf:SetPoint("CENTER", UIParent, "CENTER", nx, ny)
+                        BM.db[GetPosKey(sec)].x = nx
+                        BM.db[GetPosKey(sec)].y = ny
+                    end
                 end
             end
         end
         SaveSectionPos(section)
-        self._dragStartX = nil
-        self._dragStartY = nil
+        self._dragStartCX = nil
+        self._dragStartCY = nil
     end)
     frame:SetScript("OnMouseUp", function(self, button)
         if button == "RightButton" and not InCombatLockdown() then

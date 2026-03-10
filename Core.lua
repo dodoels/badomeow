@@ -34,26 +34,50 @@ end
 function BM.GetCurrentSpecID() return currentSpecID end
 
 function BM.GetEffectiveResourceData()
-    local formID = GetShapeshiftFormID()
-    if formID == CAT_FORM then
-        return {
-            powerType = Enum.PowerType.Energy,
-            secondaryPower = Enum.PowerType.ComboPoints,
-            maxSecondary = 5,
-            showMana = true,
-        }
-    elseif formID == BEAR_FORM then
-        return {
-            powerType = Enum.PowerType.Rage,
-            showMana = true,
-        }
+    -- Use UnitPowerType (like Ayije_CDM) instead of GetShapeshiftFormID
+    -- UnitPowerType returns the *actual* current power type for the player's form
+    local currentPowerType = UnitPowerType("player")
+
+    local result = { showMana = false }
+
+    if currentPowerType == Enum.PowerType.Energy then
+        result.powerType = Enum.PowerType.Energy
+        result.secondaryPower = Enum.PowerType.ComboPoints
+        result.maxSecondary = 5
+        result.showMana = true
+    elseif currentPowerType == Enum.PowerType.Rage then
+        result.powerType = Enum.PowerType.Rage
+        result.showMana = true
+    elseif currentPowerType == Enum.PowerType.LunarPower then
+        result.powerType = Enum.PowerType.LunarPower
+        result.showMana = true
+    elseif currentPowerType == Enum.PowerType.Mana then
+        result.powerType = Enum.PowerType.Mana
+        result.showMana = false
+    else
+        -- Fallback by spec
+        if currentSpecID == 102 then
+            result.powerType = Enum.PowerType.LunarPower
+            result.showMana = true
+        elseif currentSpecID == 103 then
+            result.powerType = Enum.PowerType.Energy
+            result.secondaryPower = Enum.PowerType.ComboPoints
+            result.maxSecondary = 5
+        elseif currentSpecID == 104 then
+            result.powerType = Enum.PowerType.Rage
+        elseif currentSpecID == 105 then
+            result.powerType = Enum.PowerType.Mana
+        else
+            return nil
+        end
     end
-    if currentSpecID == 102 then return { powerType = Enum.PowerType.LunarPower, showMana = true }
-    elseif currentSpecID == 103 then return { powerType = Enum.PowerType.Energy, secondaryPower = Enum.PowerType.ComboPoints, maxSecondary = 5, showMana = false }
-    elseif currentSpecID == 104 then return { powerType = Enum.PowerType.Rage, showMana = false }
-    elseif currentSpecID == 105 then return { powerType = Enum.PowerType.Mana, showMana = false }
+
+    -- If primary is already mana, don't show a separate mana bar
+    if result.powerType == Enum.PowerType.Mana then
+        result.showMana = false
     end
-    return nil
+
+    return result
 end
 
 function BM.GetCurrentStyle()

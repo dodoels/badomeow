@@ -15,28 +15,19 @@ local function GetParent(section)
 end
 
 ---------------------------------------------------------------------------
--- Safe number helpers — UnitPower/UnitPowerMax can return secret values
+-- Safe check for text display only (following Ayije_CDM pattern)
 ---------------------------------------------------------------------------
-local function IsSafe(v)
-    if v == nil then return false end
-    if issecretvalue and issecretvalue(v) then return false end
-    local ok, _ = pcall(tostring, v)
-    return ok
+local function IsSafeNumber(v)
+    return v ~= nil and type(v) == "number" and not issecretvalue(v)
 end
 
-local function SafeSetBar(bar, current, maximum)
-    pcall(function() bar:SetMinMaxValues(0, maximum) end)
-    pcall(function() bar:SetValue(current) end)
-end
-
-local function SafeFormatPower(current, maximum, asMana)
-    if not IsSafe(current) or not IsSafe(maximum) then return "" end
+local function FormatPower(current, maximum, asMana)
+    if not IsSafeNumber(current) or not IsSafeNumber(maximum) then return "" end
     if maximum <= 0 then maximum = 1 end
     if asMana then
         return string.format("%.0f%%", current / maximum * 100)
-    else
-        return current .. " / " .. maximum
     end
+    return current .. " / " .. maximum
 end
 
 ---------------------------------------------------------------------------
@@ -83,9 +74,9 @@ local function CreatePrimaryBar(resData)
     else barColor = { 1.0, 0.85, 0.0 } end
     primaryBar:SetStatusBarColor(barColor[1], barColor[2], barColor[3])
 
-    -- Safe init: SetMinMaxValues/SetValue via pcall in case of secret values
-    primaryBar:SetMinMaxValues(0, 1)
-    SafeSetBar(primaryBar, UnitPower("player", resData.powerType), UnitPowerMax("player", resData.powerType))
+    -- SetMinMaxValues / SetValue handle secret values natively
+    primaryBar:SetMinMaxValues(0, UnitPowerMax("player", resData.powerType))
+    primaryBar:SetValue(UnitPower("player", resData.powerType))
 
     primaryBg = primaryBar:CreateTexture(nil, "BACKGROUND")
     primaryBg:SetAllPoints()
@@ -159,9 +150,8 @@ local function CreateManaBar()
     manaBar:SetPoint("CENTER", parent, "CENTER", 0, 0)
     manaBar:SetStatusBarColor(0.2, 0.4, 1.0)
 
-    -- Safe init
-    manaBar:SetMinMaxValues(0, 1)
-    SafeSetBar(manaBar, UnitPower("player", Enum.PowerType.Mana), UnitPowerMax("player", Enum.PowerType.Mana))
+    manaBar:SetMinMaxValues(0, UnitPowerMax("player", Enum.PowerType.Mana))
+    manaBar:SetValue(UnitPower("player", Enum.PowerType.Mana))
 
     manaBg = manaBar:CreateTexture(nil, "BACKGROUND")
     manaBg:SetAllPoints()
@@ -177,7 +167,7 @@ local function CreateManaBar()
 end
 
 ---------------------------------------------------------------------------
--- Update functions
+-- Update functions — direct API calls, issecretvalue only for text
 ---------------------------------------------------------------------------
 local function UpdatePrimary()
     if not primaryBar then return end
@@ -186,13 +176,15 @@ local function UpdatePrimary()
 
     local current = UnitPower("player", resData.powerType)
     local maximum = UnitPowerMax("player", resData.powerType)
-    SafeSetBar(primaryBar, current, maximum)
+
+    primaryBar:SetMinMaxValues(0, maximum)
+    primaryBar:SetValue(current)
 
     local isMana = resData.powerType == Enum.PowerType.Mana
-    primaryText:SetText(SafeFormatPower(current, maximum, isMana))
+    primaryText:SetText(FormatPower(current, maximum, isMana))
 end
 
-local lastSecondary = 0
+local lastSecondary = -1
 local function UpdateSecondary()
     if not secondaryContainer then return end
     local resData = BM.GetEffectiveResourceData()
@@ -201,7 +193,7 @@ local function UpdateSecondary()
     local current = UnitPower("player", resData.secondaryPower)
     local maximum = resData.maxSecondary or MAX_PIPS
 
-    if not IsSafe(current) then return end
+    if not IsSafeNumber(current) then return end
 
     for i = 1, maximum do
         local pip = secondaryPips[i]
@@ -229,8 +221,10 @@ local function UpdateMana()
     if not manaBar then return end
     local current = UnitPower("player", Enum.PowerType.Mana)
     local maximum = UnitPowerMax("player", Enum.PowerType.Mana)
-    SafeSetBar(manaBar, current, maximum)
-    manaText:SetText(SafeFormatPower(current, maximum, true))
+
+    manaBar:SetMinMaxValues(0, maximum)
+    manaBar:SetValue(current)
+    manaText:SetText(FormatPower(current, maximum, true))
 end
 
 ---------------------------------------------------------------------------
