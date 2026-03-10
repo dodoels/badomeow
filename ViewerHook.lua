@@ -56,32 +56,21 @@ end
 local BLIZZARD_OVERLAY_ATLAS = "UI-HUD-CoolDownManager-IconOverlay"
 local BLIZZARD_OVERLAY_FILEID = 6707800
 
-local function HideBlizzardOverlays(frame)
-    local regions = { frame:GetRegions() }
-    for _, region in ipairs(regions) do
-        if region and region.IsObjectType and region:IsObjectType("Texture") then
-            local atlas = region.GetAtlas and region:GetAtlas()
-            local tex = region.GetTexture and region:GetTexture()
-            if atlas == BLIZZARD_OVERLAY_ATLAS or tex == BLIZZARD_OVERLAY_FILEID then
-                region:SetAlpha(0)
-                region:Hide()
-            end
-        end
-    end
-    local icon = frame.Icon
-    if icon and icon.GetRegions then
-        local iconRegions = { icon:GetRegions() }
-        for _, region in ipairs(iconRegions) do
+local function FindBlizzardOverlay(frame)
+    local function CheckRegions(parent)
+        if not parent or not parent.GetRegions then return nil end
+        for _, region in pairs({ parent:GetRegions() }) do
             if region and region.IsObjectType and region:IsObjectType("Texture") then
                 local atlas = region.GetAtlas and region:GetAtlas()
                 local tex = region.GetTexture and region:GetTexture()
                 if atlas == BLIZZARD_OVERLAY_ATLAS or tex == BLIZZARD_OVERLAY_FILEID then
-                    region:SetAlpha(0)
-                    region:Hide()
+                    return region
                 end
             end
         end
+        return nil
     end
+    return CheckRegions(frame) or CheckRegions(frame.Icon)
 end
 
 local function MasqueSkinFrame(frame, section)
@@ -95,12 +84,18 @@ local function MasqueSkinFrame(frame, section)
     if not iconTex then return end
 
     masqueRegistered[frame] = true
-    HideBlizzardOverlays(frame)
+
+    local blizzOverlay = FindBlizzardOverlay(frame)
+    if blizzOverlay then
+        blizzOverlay:SetTexture(nil)
+        blizzOverlay:SetAtlas("")
+        blizzOverlay:SetAlpha(0)
+    end
 
     local regions = {
         Icon = iconTex,
         Cooldown = frame.Cooldown or false,
-        Normal = frame.NormalTexture or false,
+        Normal = blizzOverlay or frame.NormalTexture or false,
         Border = frame.Border or false,
         Count = frame.Count or false,
     }
