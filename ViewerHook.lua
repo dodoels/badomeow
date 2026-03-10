@@ -40,17 +40,34 @@ if Masque then
     masqueGroups.utility   = Masque:Group("ForFeralSake", "工具技能 Utility")
 end
 
+local function ResolveIconTexture(frame)
+    local icon = frame.Icon
+    if not icon then return nil end
+    if icon.SetTexCoord then return icon end
+    if icon.Icon and icon.Icon.SetTexCoord then return icon.Icon end
+    if icon.GetRegions then
+        for _, region in pairs({ icon:GetRegions() }) do
+            if region.SetTexCoord then return region end
+        end
+    end
+    return nil
+end
+
 local function MasqueSkinFrame(frame, section)
     if not Masque then return end
     if not FFS.db.useMasque then return end
     local group = masqueGroups[section]
     if not group then return end
     if masqueRegistered[frame] then return end
+
+    local iconTex = ResolveIconTexture(frame)
+    if not iconTex then return end
+
     masqueRegistered[frame] = true
 
     local regions = {
-        Icon = frame.Icon,
-        Cooldown = frame.Cooldown,
+        Icon = iconTex,
+        Cooldown = frame.Cooldown or false,
         Normal = frame.NormalTexture or false,
         Border = frame.Border or false,
         Count = frame.Count or false,
