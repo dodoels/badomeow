@@ -1,4 +1,4 @@
-local addonName, BM = ...
+local addonName, FFS = ...
 
 --[[
     v4: Each section is an independent frame anchored to UIParent.
@@ -6,7 +6,7 @@ local addonName, BM = ...
     No secret value access. Each section independently draggable.
 ]]
 
-local VIEWERS = BM.VIEWERS
+local VIEWERS = FFS.VIEWERS
 
 local sectionFrames = {}  -- section -> anchor Frame
 
@@ -41,7 +41,7 @@ end
 -- Section icon size from db
 ---------------------------------------------------------------------------
 local function GetSectionIconSize(section)
-    local db = BM.db
+    local db = FFS.db
     if section == "essential" then return db.essentialSize or 36 end
     if section == "buff"      then return db.buffSize or 30 end
     if section == "utility"   then return db.utilitySize or 26 end
@@ -52,7 +52,7 @@ end
 -- Section enable check
 ---------------------------------------------------------------------------
 local function IsSectionEnabled(section)
-    local db = BM.db
+    local db = FFS.db
     if section == "buff"      then return db.showBuff ~= false end
     if section == "essential" then return db.showEssential ~= false end
     if section == "utility"   then return db.showUtility ~= false end
@@ -67,23 +67,18 @@ end
 ---------------------------------------------------------------------------
 local function GetPosKey(section) return "pos_" .. section end
 
-local function SaveSectionPos(section)
-    SaveRawPos(section)
-end
-
--- Save position as the raw point/relPoint/x/y that WoW assigns after drag
 local function SaveRawPos(section)
     local f = sectionFrames[section]
     if not f then return end
     local point, _, relPoint, x, y = f:GetPoint()
     local key = GetPosKey(section)
-    BM.db[key] = { point = point, relPoint = relPoint, x = x, y = y }
+    FFS.db[key] = { point = point, relPoint = relPoint, x = x, y = y }
 end
 
 local function ApplyPos(section)
     local f = sectionFrames[section]
     if not f then return end
-    local pos = BM.db[GetPosKey(section)]
+    local pos = FFS.db[GetPosKey(section)]
     if not pos then return end
     f:ClearAllPoints()
     if pos.point and pos.relPoint then
@@ -98,7 +93,7 @@ local function MakeDraggable(frame, section)
     frame:EnableMouse(true)
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", function(self)
-        if not BM.db.locked and not InCombatLockdown() then
+        if not FFS.db.locked and not InCombatLockdown() then
             self:StartMoving()
         end
     end)
@@ -108,10 +103,10 @@ local function MakeDraggable(frame, section)
     end)
     frame:SetScript("OnMouseUp", function(self, button)
         if button == "RightButton" and not InCombatLockdown() then
-            BM.db.locked = not BM.db.locked
-            if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
-            local msg = BM.db.locked and "已锁定" or "已解锁"
-            print("|cFF00FF00badomeow:|r " .. msg)
+            FFS.db.locked = not FFS.db.locked
+            if FFS.UpdateSectionLockState then FFS.UpdateSectionLockState() end
+            local msg = FFS.db.locked and "已锁定" or "已解锁"
+            print("|cFF00FF00豹读诗书:|r " .. msg)
         end
     end)
 end
@@ -119,12 +114,12 @@ end
 local function EnsureSectionFrame(section)
     if sectionFrames[section] then return sectionFrames[section] end
 
-    local f = CreateFrame("Frame", "badomeowSec_" .. section, UIParent)
+    local f = CreateFrame("Frame", "ffsSec_" .. section, UIParent)
     f:SetFrameStrata("MEDIUM")
     f:SetFrameLevel(12)
     f:SetClampedToScreen(true)
 
-    local db = BM.db
+    local db = FFS.db
     local pos = db[GetPosKey(section)]
     if pos and pos.point and pos.relPoint then
         f:SetPoint(pos.point, UIParent, pos.relPoint, pos.x or 0, pos.y or 0)
@@ -142,7 +137,7 @@ local function EnsureSectionFrame(section)
     f.label:SetFont("Fonts\\FRIZQT__.TTF", 9, "OUTLINE")
     f.label:SetPoint("TOP", f, "TOP", 0, 12)
     f.label:SetTextColor(1, 0.85, 0, 0.8)
-    f.label:SetText(BM.SECTION_LABELS[section] or section)
+    f.label:SetText(FFS.SECTION_LABELS[section] or section)
     f.label:Hide()
 
     -- Background shown when unlocked (subtle)
@@ -155,17 +150,17 @@ local function EnsureSectionFrame(section)
     return f
 end
 
-BM.sectionFrames = sectionFrames
+FFS.sectionFrames = sectionFrames
 
 ---------------------------------------------------------------------------
 -- Update lock/unlock visuals for all section frames
 ---------------------------------------------------------------------------
-function BM.UpdateSectionLockState()
-    local locked = BM.db.locked
-    local settingsOpen = BM.settingsOpen
+function FFS.UpdateSectionLockState()
+    local locked = FFS.db.locked
+    local settingsOpen = FFS.settingsOpen
     local showGuides = not locked or settingsOpen
 
-    for _, sec in ipairs(BM.SECTIONS) do
+    for _, sec in ipairs(FFS.SECTIONS) do
         local f = sectionFrames[sec]
         if f then
             if not InCombatLockdown() then
@@ -189,7 +184,7 @@ local function LayoutSection(section)
     local f = sectionFrames[section]
     if not f then return end
     local iconSz = GetSectionIconSize(section)
-    local spacing = BM.db.iconSpacing or 2
+    local spacing = FFS.db.iconSpacing or 2
 
     if not IsSectionEnabled(section) then
         f:Hide()
@@ -239,8 +234,8 @@ local function LayoutSection(section)
         frame:SetFrameLevel(f:GetFrameLevel() + 2)
     end
 
-    local unlocked = not BM.db.locked
-    local previewMode = unlocked or BM.settingsOpen
+    local unlocked = not FFS.db.locked
+    local previewMode = unlocked or FFS.settingsOpen
     if #frames > 0 then
         f:Show()
     elseif previewMode and IsSectionEnabled(section) then
@@ -318,34 +313,34 @@ end)
 ---------------------------------------------------------------------------
 -- Public init
 ---------------------------------------------------------------------------
-function BM.InitViewerHooks()
+function FFS.InitViewerHooks()
     -- Create frames for ALL sections (including primary/secondary for resource bars)
-    for _, sec in ipairs(BM.SECTIONS) do EnsureSectionFrame(sec) end
+    for _, sec in ipairs(FFS.SECTIONS) do EnsureSectionFrame(sec) end
     for _, vName in ipairs(ALL_VIEWER_NAMES) do HookViewer(vName) end
     HookMixins()
-    BM.UpdateSectionLockState()
+    FFS.UpdateSectionLockState()
 end
 
-function BM.RefreshSectionScales()
-    local s = BM.db.scale or 1
-    for _, sec in ipairs(BM.SECTIONS) do
+function FFS.RefreshSectionScales()
+    local s = FFS.db.scale or 1
+    for _, sec in ipairs(FFS.SECTIONS) do
         local f = sectionFrames[sec]
         if f then f:SetScale(s) end
     end
 end
 
-function BM.ResetAllPositions()
-    local defaults = BM.DefaultDB
-    for _, sec in ipairs(BM.SECTIONS) do
+function FFS.ResetAllPositions()
+    local defaults = FFS.DefaultDB
+    for _, sec in ipairs(FFS.SECTIONS) do
         local key = GetPosKey(sec)
         local def = defaults[key] or { x = 0, y = -200 }
-        BM.db[key] = { point = "CENTER", relPoint = "CENTER", x = def.x, y = def.y }
+        FFS.db[key] = { point = "CENTER", relPoint = "CENTER", x = def.x, y = def.y }
         local f = sectionFrames[sec]
         if f then
             f:ClearAllPoints()
             f:SetPoint("CENTER", UIParent, "CENTER", def.x, def.y)
         end
     end
-    BM.db.globalOffsetX = 0
-    BM.db.globalOffsetY = 0
+    FFS.db.globalOffsetX = 0
+    FFS.db.globalOffsetY = 0
 end

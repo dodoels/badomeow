@@ -1,10 +1,10 @@
-local _, BM = ...
+local _, FFS = ...
 
-BM.L = BM.L or {}
-local L = BM.L
+FFS.L = FFS.L or {}
+local L = FFS.L
 
-L["ADDON_LOADED"]         = "财高·森境云庭·麓悦夜林·豹集 v2 已加载 - /bdm 打开设置 (官方CDM同步)"
-L["SETTINGS_TITLE"]       = "豹集 badomeow - 官方CDM同步监控"
+L["ADDON_LOADED"]         = "至暗.八方.豹读诗书.哈基米要你命三千八 v1.0.0 已加载 - /ffs 打开设置 (官方CDM同步)"
+L["SETTINGS_TITLE"]       = "豹读诗书 - 官方CDM同步监控"
 L["GENERAL"]              = "常规设置"
 L["ENABLED"]              = "启用插件"
 L["LOCK_FRAME"]           = "框体已锁定"

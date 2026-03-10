@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 badomeow contributors
+Copyright (c) 2026 ForFeralSake contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26,19 +26,18 @@ INSPIRATIONS & CREDITS:
 
 This project drew inspiration from the following open-source projects:
 
+- Ayije_CDM
+  The primary reference for WoW 12.0 CooldownViewer hooking patterns,
+  secret value handling, and container management.
+
 - WeakAuras2 (https://github.com/WeakAuras/WeakAuras2)
   License: GNU GPL v2
-  The gold standard for WoW combat display frameworks. While WeakAuras is no
-  longer functional in WoW 12.0 Midnight due to API restrictions, its design
-  philosophy of customizable combat displays deeply influenced this addon.
+  The gold standard for WoW combat display frameworks.
 
 - SenseiClassResourceBar (https://github.com/Snsei987/SenseiClassResourceBar)
   License: MIT
-  A clean, modern resource bar addon for WoW 12.0. Its approach to
-  LibEQOL integration, Settings API usage, and 12.0-compatible patterns
-  served as a key reference for this addon's architecture.
+  A clean, modern resource bar addon for WoW 12.0.
 
 - Arc UI (https://github.com/devdeadviz/arc-ui)
-  License: Not specified
   A styling framework whose component-based design approach inspired
-  the modular UI structure of badomeow.
+  the modular UI structure.

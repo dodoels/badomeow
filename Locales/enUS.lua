@@ -1,10 +1,10 @@
-local _, BM = ...
-if not BM.L then BM.L = {} end
-local L = BM.L
+local _, FFS = ...
+if not FFS.L then FFS.L = {} end
+local L = FFS.L
 
 local defaults = {
-    ["ADDON_LOADED"]         = "badomeow v2 loaded - /bdm to open settings (Official CDM sync)",
-    ["SETTINGS_TITLE"]       = "badomeow - Official CDM Sync Monitor",
+    ["ADDON_LOADED"]         = "ForFeralSake v1.0.0 loaded - /ffs to open settings (Official CDM sync)",
+    ["SETTINGS_TITLE"]       = "ForFeralSake - Official CDM Sync Monitor",
     ["GENERAL"]              = "General",
     ["ENABLED"]              = "Enable Addon",
     ["LOCK_FRAME"]           = "Frame Locked",

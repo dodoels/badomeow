@@ -1,4 +1,4 @@
-local addonName, BM = ...
+local addonName, FFS = ...
 
 local primaryBar, primaryText, primaryBg
 local secondaryContainer
@@ -8,8 +8,8 @@ local manaBar, manaText, manaBg
 local powerFrame
 
 local function GetParent(section)
-    if BM.sectionFrames and BM.sectionFrames[section] then
-        return BM.sectionFrames[section]
+    if FFS.sectionFrames and FFS.sectionFrames[section] then
+        return FFS.sectionFrames[section]
     end
     return UIParent
 end
@@ -46,22 +46,22 @@ local function DestroyBars()
     manaBar = nil
     manaText = nil
     manaBg = nil
-    BM.primaryBar = nil
-    BM.secondaryContainer = nil
-    BM.manaBar = nil
+    FFS.primaryBar = nil
+    FFS.secondaryContainer = nil
+    FFS.manaBar = nil
 end
 
 ---------------------------------------------------------------------------
 -- Primary bar (Energy / Rage / LunarPower / Mana)
 ---------------------------------------------------------------------------
 local function CreatePrimaryBar(resData)
-    local db = BM.db
-    local style = BM.GetCurrentStyle()
+    local db = FFS.db
+    local style = FFS.GetCurrentStyle()
     local parent = GetParent("primary")
 
     parent:SetSize(db.barWidth, db.barHeight)
 
-    primaryBar = CreateFrame("StatusBar", "badomeowPrimaryBar", parent)
+    primaryBar = CreateFrame("StatusBar", "ffsPrimaryBar", parent)
     primaryBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
     primaryBar:SetSize(db.barWidth, db.barHeight)
     primaryBar:SetPoint("CENTER", parent, "CENTER", 0, 0)
@@ -88,7 +88,7 @@ local function CreatePrimaryBar(resData)
     primaryText:SetPoint("CENTER")
     primaryText:SetTextColor(1, 1, 1, 1)
 
-    BM.primaryBar = primaryBar
+    FFS.primaryBar = primaryBar
 end
 
 ---------------------------------------------------------------------------
@@ -96,7 +96,7 @@ end
 ---------------------------------------------------------------------------
 local function CreateSecondaryPips(resData)
     if not resData.secondaryPower then return end
-    local db = BM.db
+    local db = FFS.db
     local maxPips = resData.maxSecondary or MAX_PIPS
     local parent = GetParent("secondary")
     local pipW = db.pipWidth or 260
@@ -104,7 +104,7 @@ local function CreateSecondaryPips(resData)
 
     parent:SetSize(pipW, pipH)
 
-    secondaryContainer = CreateFrame("Frame", "badomeowSecondaryBar", parent)
+    secondaryContainer = CreateFrame("Frame", "ffsSecondaryBar", parent)
     secondaryContainer:SetSize(pipW, pipH)
     secondaryContainer:SetPoint("CENTER", parent, "CENTER", 0, 0)
 
@@ -129,22 +129,22 @@ local function CreateSecondaryPips(resData)
         secondaryPips[i] = pip
     end
 
-    BM.secondaryContainer = secondaryContainer
+    FFS.secondaryContainer = secondaryContainer
 end
 
 ---------------------------------------------------------------------------
 -- Mana bar (shown in shifted forms alongside main resource)
 ---------------------------------------------------------------------------
 local function CreateManaBar()
-    local db = BM.db
-    local style = BM.GetCurrentStyle()
+    local db = FFS.db
+    local style = FFS.GetCurrentStyle()
     local parent = GetParent("mana")
     local mW = db.manaBarWidth or 260
     local mH = db.manaBarHeight or 10
 
     parent:SetSize(mW, mH)
 
-    manaBar = CreateFrame("StatusBar", "badomeowManaBar", parent)
+    manaBar = CreateFrame("StatusBar", "ffsManaBar", parent)
     manaBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
     manaBar:SetSize(mW, mH)
     manaBar:SetPoint("CENTER", parent, "CENTER", 0, 0)
@@ -163,7 +163,7 @@ local function CreateManaBar()
     manaText:SetPoint("CENTER")
     manaText:SetTextColor(1, 1, 1, 1)
 
-    BM.manaBar = manaBar
+    FFS.manaBar = manaBar
 end
 
 ---------------------------------------------------------------------------
@@ -171,7 +171,7 @@ end
 ---------------------------------------------------------------------------
 local function UpdatePrimary()
     if not primaryBar then return end
-    local resData = BM.GetEffectiveResourceData()
+    local resData = FFS.GetEffectiveResourceData()
     if not resData then return end
 
     local current = UnitPower("player", resData.powerType)
@@ -187,7 +187,7 @@ end
 local lastSecondary = -1
 local function UpdateSecondary()
     if not secondaryContainer then return end
-    local resData = BM.GetEffectiveResourceData()
+    local resData = FFS.GetEffectiveResourceData()
     if not resData or not resData.secondaryPower then return end
 
     local current = UnitPower("player", resData.secondaryPower)
@@ -199,7 +199,7 @@ local function UpdateSecondary()
         local pip = secondaryPips[i]
         if not pip then break end
         if i <= current then
-            local color = BM.ComboPipColors[i] or { 1, 0.5, 0 }
+            local color = FFS.ComboPipColors[i] or { 1, 0.5, 0 }
             pip.fill:SetVertexColor(color[1], color[2], color[3], 1)
             pip.fill:Show()
         else
@@ -231,21 +231,21 @@ end
 -- Section visibility based on form
 ---------------------------------------------------------------------------
 local function UpdateSectionVisibility()
-    local resData = BM.GetEffectiveResourceData()
+    local resData = FFS.GetEffectiveResourceData()
     if not resData then return end
 
-    local secFrame = BM.sectionFrames and BM.sectionFrames["secondary"]
+    local secFrame = FFS.sectionFrames and FFS.sectionFrames["secondary"]
     if secFrame then
-        if resData.secondaryPower and BM.db.showSecondaryBar ~= false then
+        if resData.secondaryPower and FFS.db.showSecondaryBar ~= false then
             secFrame:Show()
         else
             secFrame:Hide()
         end
     end
 
-    local manaFrame = BM.sectionFrames and BM.sectionFrames["mana"]
+    local manaFrame = FFS.sectionFrames and FFS.sectionFrames["mana"]
     if manaFrame then
-        if resData.showMana and BM.db.showManaBar ~= false then
+        if resData.showMana and FFS.db.showManaBar ~= false then
             manaFrame:Show()
         else
             manaFrame:Hide()
@@ -256,9 +256,9 @@ end
 ---------------------------------------------------------------------------
 -- Build / Rebuild
 ---------------------------------------------------------------------------
-function BM.RebuildResourceBars()
+function FFS.RebuildResourceBars()
     DestroyBars()
-    local resData = BM.GetEffectiveResourceData()
+    local resData = FFS.GetEffectiveResourceData()
     if not resData then return end
 
     CreatePrimaryBar(resData)
@@ -277,7 +277,7 @@ function BM.RebuildResourceBars()
     UpdateSectionVisibility()
 end
 
-function BM.InitResourceBars()
+function FFS.InitResourceBars()
     powerFrame = CreateFrame("Frame")
     powerFrame:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player")
     powerFrame:RegisterUnitEvent("UNIT_MAXPOWER", "player")
@@ -286,5 +286,5 @@ function BM.InitResourceBars()
         UpdateSecondary()
         UpdateMana()
     end)
-    BM.RebuildResourceBars()
+    FFS.RebuildResourceBars()
 end

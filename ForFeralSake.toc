@@ -1,12 +1,12 @@
 ## Interface: 120000, 120001
-## Title: badomeow
-## Title-zhCN: 财高·森境云庭·麓悦夜林·豹集
+## Title: ForFeralSake
+## Title-zhCN: 至暗.八方.豹读诗书.哈基米要你命三千八
 ## Notes: Druid combat monitor - hooks Blizzard's CooldownViewer for automatic spell tracking
 ## Notes-zhCN: 德鲁伊战斗监控 - 自动同步官方冷却监控系统、资源条、自定义样式
-## Author: badomeow team
-## Version: 4.0.0
+## Author: ForFeralSake team
+## Version: 1.0.0
 ## License: MIT
-## SavedVariables: badomeowDB
+## SavedVariables: ForFeralSakeDB
 ## IconTexture: Interface\Icons\Ability_Druid_CatForm
 
 Locales\zhCN.lua

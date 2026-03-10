@@ -1,4 +1,4 @@
-local addonName, BM = ...
+local addonName, FFS = ...
 local L
 
 local isDruid = false
@@ -28,14 +28,12 @@ end
 
 local function IsDruid()
     local _, _, classID = UnitClass("player")
-    return classID == BM.DRUID_CLASS_ID
+    return classID == FFS.DRUID_CLASS_ID
 end
 
-function BM.GetCurrentSpecID() return currentSpecID end
+function FFS.GetCurrentSpecID() return currentSpecID end
 
-function BM.GetEffectiveResourceData()
-    -- Use UnitPowerType (like Ayije_CDM) instead of GetShapeshiftFormID
-    -- UnitPowerType returns the *actual* current power type for the player's form
+function FFS.GetEffectiveResourceData()
     local currentPowerType = UnitPowerType("player")
 
     local result = { showMana = false }
@@ -55,7 +53,6 @@ function BM.GetEffectiveResourceData()
         result.powerType = Enum.PowerType.Mana
         result.showMana = false
     else
-        -- Fallback by spec
         if currentSpecID == 102 then
             result.powerType = Enum.PowerType.LunarPower
             result.showMana = true
@@ -72,7 +69,6 @@ function BM.GetEffectiveResourceData()
         end
     end
 
-    -- If primary is already mana, don't show a separate mana bar
     if result.powerType == Enum.PowerType.Mana then
         result.showMana = false
     end
@@ -80,84 +76,69 @@ function BM.GetEffectiveResourceData()
     return result
 end
 
-function BM.GetCurrentStyle()
-    return BM.Styles[BM.db.style or "default"] or BM.Styles["default"]
+function FFS.GetCurrentStyle()
+    return FFS.Styles[FFS.db.style or "default"] or FFS.Styles["default"]
 end
 
-function BM.PlayAlertSound() end
+function FFS.PlayAlertSound() end
 
-BM.settingsOpen = false
+FFS.settingsOpen = false
 
----------------------------------------------------------------------------
--- Visibility: show/hide all section frames based on class+spec
----------------------------------------------------------------------------
 local function ShouldShow()
-    if not BM.db.enabled then return false end
+    if not FFS.db.enabled then return false end
     if not isDruid then return false end
     if currentSpecID == 0 then return false end
     return true
 end
 
-function BM.UpdateVisibility()
+function FFS.UpdateVisibility()
     local show = ShouldShow()
-    for _, sec in ipairs(BM.SECTIONS) do
-        local f = BM.sectionFrames and BM.sectionFrames[sec]
+    for _, sec in ipairs(FFS.SECTIONS) do
+        local f = FFS.sectionFrames and FFS.sectionFrames[sec]
         if f then
             if show then f:Show() else f:Hide() end
         end
     end
-    if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
+    if FFS.UpdateSectionLockState then FFS.UpdateSectionLockState() end
 end
 
----------------------------------------------------------------------------
--- Spec / form changes
----------------------------------------------------------------------------
 local function OnSpecChanged()
     local newSpec = DetectSpec()
     if newSpec == currentSpecID then return end
     currentSpecID = newSpec
-    local specName = BM.SpecNamesCN[currentSpecID] or "?"
-    print("|cFF00FF00badomeow:|r 切换到 |cFFFFD100" .. specName .. "|r 专精")
-    if BM.RebuildResourceBars then BM.RebuildResourceBars() end
-    BM.UpdateVisibility()
+    local specName = FFS.SpecNamesCN[currentSpecID] or "?"
+    print("|cFF00FF00豹读诗书:|r 切换到 |cFFFFD100" .. specName .. "|r 专精")
+    if FFS.RebuildResourceBars then FFS.RebuildResourceBars() end
+    FFS.UpdateVisibility()
 end
 
 local lastFormID = -1
-function BM.OnFormChanged()
+function FFS.OnFormChanged()
     local formID = GetShapeshiftFormID() or 0
     if formID == lastFormID then return end
     lastFormID = formID
-    if BM.RebuildResourceBars then BM.RebuildResourceBars() end
+    if FFS.RebuildResourceBars then FFS.RebuildResourceBars() end
 end
 
----------------------------------------------------------------------------
--- Refresh all (called from Settings sliders)
----------------------------------------------------------------------------
-function BM.RefreshAll()
-    if BM.RefreshSectionScales then BM.RefreshSectionScales() end
-    if BM.RebuildResourceBars then BM.RebuildResourceBars() end
-    BM.UpdateVisibility()
+function FFS.RefreshAll()
+    if FFS.RefreshSectionScales then FFS.RefreshSectionScales() end
+    if FFS.RebuildResourceBars then FFS.RebuildResourceBars() end
+    FFS.UpdateVisibility()
 end
 
----------------------------------------------------------------------------
--- DB init
----------------------------------------------------------------------------
 local function InitDB()
-    if not badomeowDB then badomeowDB = {} end
-    CopyDefaults(BM.DefaultDB, badomeowDB)
-    BM.db = badomeowDB
+    if not ForFeralSakeDB then ForFeralSakeDB = {} end
+    CopyDefaults(FFS.DefaultDB, ForFeralSakeDB)
+    FFS.db = ForFeralSakeDB
 end
 
----------------------------------------------------------------------------
--- Retry viewer hooks
----------------------------------------------------------------------------
 local MAX_HOOK_RETRIES = 30
 local function RetryViewerHooks(attempt)
-    if not BM.InitViewerHooks then return end
+    if not FFS.InitViewerHooks then return end
     attempt = attempt or 1
-    BM.InitViewerHooks()
+    FFS.InitViewerHooks()
     local allFound = true
-    for _, vName in pairs(BM.VIEWERS) do
+    for _, vName in pairs(FFS.VIEWERS) do
         if not _G[vName] then allFound = false; break end
     end
     if not allFound and attempt < MAX_HOOK_RETRIES then
@@ -165,9 +146,6 @@ local function RetryViewerHooks(attempt)
     end
 end
 
----------------------------------------------------------------------------
--- Events
----------------------------------------------------------------------------
 local EventFrame = CreateFrame("Frame")
 EventFrame:RegisterEvent("ADDON_LOADED")
 EventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -181,21 +159,21 @@ EventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 EventFrame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == addonName then
         InitDB()
-        L = BM.L
+        L = FFS.L
         isDruid = IsDruid()
         if not isDruid then return end
         currentSpecID = DetectSpec()
-        if BM.InitResourceBars then BM.InitResourceBars() end
+        if FFS.InitResourceBars then FFS.InitResourceBars() end
         RetryViewerHooks(1)
-        if BM.InitSettings then BM.InitSettings() end
-        BM.UpdateVisibility()
-        print("|cFF00FF00badomeow:|r 已加载 v" .. BM.VERSION)
+        if FFS.InitSettings then FFS.InitSettings() end
+        FFS.UpdateVisibility()
+        print("|cFF00FF00豹读诗书:|r 已加载 v" .. FFS.VERSION)
 
     elseif event == "PLAYER_ENTERING_WORLD" then
         if not isDruid then return end
         OnSpecChanged()
         lastFormID = -1
-        BM.OnFormChanged()
+        FFS.OnFormChanged()
         RetryViewerHooks(1)
 
     elseif event == "LOADING_SCREEN_DISABLED" then
@@ -204,39 +182,36 @@ EventFrame:SetScript("OnEvent", function(self, event, arg1)
 
     elseif event == "PLAYER_REGEN_ENABLED" then
         if not isDruid then return end
-        if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
+        if FFS.UpdateSectionLockState then FFS.UpdateSectionLockState() end
 
     elseif event == "PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then
         if isDruid then OnSpecChanged() end
 
     elseif event == "UPDATE_SHAPESHIFT_FORM" or event == "UPDATE_SHAPESHIFT_FORMS" then
-        if isDruid then BM.OnFormChanged() end
+        if isDruid then FFS.OnFormChanged() end
     end
 end)
 
----------------------------------------------------------------------------
--- Slash commands
----------------------------------------------------------------------------
-SlashCmdList["BADOMEOW"] = function(msg)
+SlashCmdList["FORFERALSAKE"] = function(msg)
     if not isDruid then
-        print("|cFFFF5555badomeow:|r 此插件仅适用于德鲁伊职业"); return
+        print("|cFFFF5555豹读诗书:|r 此插件仅适用于德鲁伊职业"); return
     end
     msg = strtrim(msg or ""):lower()
     if msg == "lock" then
-        BM.db.locked = true
-        if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
-        print("|cFF00FF00badomeow:|r 已锁定")
+        FFS.db.locked = true
+        if FFS.UpdateSectionLockState then FFS.UpdateSectionLockState() end
+        print("|cFF00FF00豹读诗书:|r 已锁定")
     elseif msg == "unlock" then
-        if InCombatLockdown() then print("|cFFFF5555badomeow:|r 战斗中无法解锁"); return end
-        BM.db.locked = false
-        if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
-        print("|cFF00FF00badomeow:|r 已解锁，拖动各组件移动位置")
+        if InCombatLockdown() then print("|cFFFF5555豹读诗书:|r 战斗中无法解锁"); return end
+        FFS.db.locked = false
+        if FFS.UpdateSectionLockState then FFS.UpdateSectionLockState() end
+        print("|cFF00FF00豹读诗书:|r 已解锁，拖动各组件移动位置")
     elseif msg == "reset" then
-        if BM.ResetAllPositions then BM.ResetAllPositions() end
-        print("|cFF00FF00badomeow:|r 所有位置已重置")
+        if FFS.ResetAllPositions then FFS.ResetAllPositions() end
+        print("|cFF00FF00豹读诗书:|r 所有位置已重置")
     elseif msg == "debug" then
-        print("|cFF00FF00badomeow debug:|r --- Viewer Status ---")
-        for key, vName in pairs(BM.VIEWERS) do
+        print("|cFF00FF00豹读诗书 debug:|r --- Viewer Status ---")
+        for key, vName in pairs(FFS.VIEWERS) do
             local viewer = _G[vName]
             if viewer then
                 local count = 0
@@ -252,10 +227,9 @@ SlashCmdList["BADOMEOW"] = function(msg)
         end
         print("  spec=" .. currentSpecID .. " combat=" .. tostring(InCombatLockdown()))
     else
-        if BM.OpenSettings then BM.OpenSettings()
-        else print("|cFF00FF00badomeow:|r /bdm lock | unlock | reset | debug") end
+        if FFS.OpenSettings then FFS.OpenSettings()
+        else print("|cFF00FF00豹读诗书:|r /ffs lock | unlock | reset | debug") end
     end
 end
-SLASH_BADOMEOW1 = "/bdm"
-SLASH_BADOMEOW2 = "/badomeow"
-SLASH_BADOMEOW3 = "/bado"
+SLASH_FORFERALSAKE1 = "/ffs"
+SLASH_FORFERALSAKE2 = "/forferalsake"

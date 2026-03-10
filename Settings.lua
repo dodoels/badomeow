@@ -1,13 +1,13 @@
-local addonName, BM = ...
+local addonName, FFS = ...
 local L
 
 local settingsRegistered = false
 
 local function CreateOptionsPanel()
-    L = BM.L or {}
+    L = FFS.L or {}
 
-    local panel = CreateFrame("Frame", "badomeowOptionsPanel", UIParent)
-    panel.name = "badomeow"
+    local panel = CreateFrame("Frame", "ffsOptionsPanel", UIParent)
+    panel.name = "ForFeralSake"
     panel:Hide()
 
     local scrollFrame = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
@@ -57,16 +57,16 @@ local function CreateOptionsPanel()
 
     local function Checkbox(labelText, dbKey)
         local y = NextY(28)
-        local cb = CreateFrame("CheckButton", "badomeowCB_" .. dbKey, content, "UICheckButtonTemplate")
+        local cb = CreateFrame("CheckButton", "ffsCB_" .. dbKey, content, "UICheckButtonTemplate")
         cb:SetPoint("TOPLEFT", content, "TOPLEFT", 10, y)
         cb:SetSize(26, 26)
         local text = cb:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         text:SetPoint("LEFT", cb, "RIGHT", 4, 0)
         text:SetText(labelText)
-        cb:SetChecked(BM.db[dbKey] or false)
+        cb:SetChecked(FFS.db[dbKey] or false)
         cb:SetScript("OnClick", function(self)
-            BM.db[dbKey] = self:GetChecked() and true or false
-            BM.RefreshAll()
+            FFS.db[dbKey] = self:GetChecked() and true or false
+            FFS.RefreshAll()
         end)
     end
 
@@ -77,24 +77,24 @@ local function CreateOptionsPanel()
         lbl:SetPoint("TOPLEFT", content, "TOPLEFT", 10, y)
         lbl:SetText(labelText)
 
-        local s = CreateFrame("Slider", "badomeowSlider_" .. dbKey, content, "OptionsSliderTemplate")
+        local s = CreateFrame("Slider", "ffsSlider_" .. dbKey, content, "OptionsSliderTemplate")
         s:SetPoint("TOPLEFT", content, "TOPLEFT", 200, y - 2)
         s:SetSize(200, 17)
         s:SetMinMaxValues(minVal, maxVal)
         s:SetValueStep(step)
         s:SetObeyStepOnDrag(true)
-        s:SetValue(BM.db[dbKey] or minVal)
+        s:SetValue(FFS.db[dbKey] or minVal)
         s.Low:SetText(tostring(minVal))
         s.High:SetText(tostring(maxVal))
 
         local valText = s:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         valText:SetPoint("TOP", s, "BOTTOM", 0, -2)
-        valText:SetText(string.format(fmt, BM.db[dbKey] or minVal))
+        valText:SetText(string.format(fmt, FFS.db[dbKey] or minVal))
 
         s:SetScript("OnValueChanged", function(self, v)
-            BM.db[dbKey] = v
+            FFS.db[dbKey] = v
             valText:SetText(string.format(fmt, v))
-            BM.RefreshAll()
+            FFS.RefreshAll()
         end)
     end
 
@@ -112,7 +112,7 @@ local function CreateOptionsPanel()
     ---------------------------------------------------------------------------
     local title = content:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
     title:SetPoint("TOPLEFT", content, "TOPLEFT", 0, NextY(28))
-    title:SetText("豹集 badomeow v" .. BM.VERSION)
+    title:SetText("至暗.八方.豹读诗书.哈基米要你命三千八 v" .. FFS.VERSION)
     title:SetTextColor(0.4, 0.9, 0.4, 1)
     InfoText("自动 hook 暴雪 CooldownViewer，各组件可自由拖动定位。")
     InfoText("打开设置时会显示所有已启用组件的位置预览。")
@@ -126,21 +126,21 @@ local function CreateOptionsPanel()
     Checkbox("启用插件", "enabled")
     do
         local y = NextY(28)
-        local cb = CreateFrame("CheckButton", "badomeowCB_locked", content, "UICheckButtonTemplate")
+        local cb = CreateFrame("CheckButton", "ffsCB_locked", content, "UICheckButtonTemplate")
         cb:SetPoint("TOPLEFT", content, "TOPLEFT", 10, y)
         cb:SetSize(26, 26)
         local text = cb:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         text:SetPoint("LEFT", cb, "RIGHT", 4, 0)
         text:SetText("锁定所有组件")
-        cb:SetChecked(BM.db.locked)
+        cb:SetChecked(FFS.db.locked)
         cb:SetScript("OnClick", function(self)
             if InCombatLockdown() then
-                print("|cFFFF5555badomeow:|r 战斗中无法切换锁定")
-                self:SetChecked(BM.db.locked)
+                print("|cFFFF5555豹读诗书:|r 战斗中无法切换锁定")
+                self:SetChecked(FFS.db.locked)
                 return
             end
-            BM.db.locked = self:GetChecked() and true or false
-            if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
+            FFS.db.locked = self:GetChecked() and true or false
+            if FFS.UpdateSectionLockState then FFS.UpdateSectionLockState() end
         end)
     end
     InfoText("右键任意已解锁组件 = 快速锁定/解锁。Shift+拖动 = 整体移动。")
@@ -149,8 +149,8 @@ local function CreateOptionsPanel()
     Spacer(4)
     InfoText("全局偏移 — 同时移动所有组件位置")
     do
-        local lastGX = BM.db.globalOffsetX or 0
-        local lastGY = BM.db.globalOffsetY or 0
+        local lastGX = FFS.db.globalOffsetX or 0
+        local lastGY = FFS.db.globalOffsetY or 0
 
         local function ApplyGlobalOffset(axis, newVal)
             local oldVal
@@ -158,9 +158,9 @@ local function CreateOptionsPanel()
             local delta = newVal - oldVal
             if delta == 0 then return end
 
-            for _, sec in ipairs(BM.SECTIONS) do
+            for _, sec in ipairs(FFS.SECTIONS) do
                 local key = "pos_" .. sec
-                local pos = BM.db[key]
+                local pos = FFS.db[key]
                 if pos then
                     if axis == "x" then
                         pos.x = (pos.x or 0) + delta
@@ -168,7 +168,7 @@ local function CreateOptionsPanel()
                         pos.y = (pos.y or 0) + delta
                     end
                 end
-                local f = BM.sectionFrames and BM.sectionFrames[sec]
+                local f = FFS.sectionFrames and FFS.sectionFrames[sec]
                 if f and pos then
                     local pt = pos.point or "CENTER"
                     local rpt = pos.relPoint or "CENTER"
@@ -185,21 +185,21 @@ local function CreateOptionsPanel()
         lblGX:SetPoint("TOPLEFT", content, "TOPLEFT", 10, yGX)
         lblGX:SetText("全局 X 偏移")
 
-        local sGX = CreateFrame("Slider", "badomeowSlider_globalOffsetX", content, "OptionsSliderTemplate")
+        local sGX = CreateFrame("Slider", "ffsSlider_globalOffsetX", content, "OptionsSliderTemplate")
         sGX:SetPoint("TOPLEFT", content, "TOPLEFT", 200, yGX - 2)
         sGX:SetSize(200, 17)
         sGX:SetMinMaxValues(-800, 800)
         sGX:SetValueStep(1)
         sGX:SetObeyStepOnDrag(true)
-        sGX:SetValue(BM.db.globalOffsetX or 0)
+        sGX:SetValue(FFS.db.globalOffsetX or 0)
         sGX.Low:SetText("-800")
         sGX.High:SetText("800")
         local vGX = sGX:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         vGX:SetPoint("TOP", sGX, "BOTTOM", 0, -2)
-        vGX:SetText(tostring(BM.db.globalOffsetX or 0))
+        vGX:SetText(tostring(FFS.db.globalOffsetX or 0))
         sGX:SetScript("OnValueChanged", function(self, v)
             v = math.floor(v + 0.5)
-            BM.db.globalOffsetX = v
+            FFS.db.globalOffsetX = v
             vGX:SetText(tostring(v))
             ApplyGlobalOffset("x", v)
         end)
@@ -209,21 +209,21 @@ local function CreateOptionsPanel()
         lblGY:SetPoint("TOPLEFT", content, "TOPLEFT", 10, yGY)
         lblGY:SetText("全局 Y 偏移")
 
-        local sGY = CreateFrame("Slider", "badomeowSlider_globalOffsetY", content, "OptionsSliderTemplate")
+        local sGY = CreateFrame("Slider", "ffsSlider_globalOffsetY", content, "OptionsSliderTemplate")
         sGY:SetPoint("TOPLEFT", content, "TOPLEFT", 200, yGY - 2)
         sGY:SetSize(200, 17)
         sGY:SetMinMaxValues(-600, 600)
         sGY:SetValueStep(1)
         sGY:SetObeyStepOnDrag(true)
-        sGY:SetValue(BM.db.globalOffsetY or 0)
+        sGY:SetValue(FFS.db.globalOffsetY or 0)
         sGY.Low:SetText("-600")
         sGY.High:SetText("600")
         local vGY = sGY:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         vGY:SetPoint("TOP", sGY, "BOTTOM", 0, -2)
-        vGY:SetText(tostring(BM.db.globalOffsetY or 0))
+        vGY:SetText(tostring(FFS.db.globalOffsetY or 0))
         sGY:SetScript("OnValueChanged", function(self, v)
             v = math.floor(v + 0.5)
-            BM.db.globalOffsetY = v
+            FFS.db.globalOffsetY = v
             vGY:SetText(tostring(v))
             ApplyGlobalOffset("y", v)
         end)
@@ -282,30 +282,30 @@ local function CreateOptionsPanel()
     Header("操作")
 
     local function SyncLockedCheckbox()
-        local cb = _G["badomeowCB_locked"]
-        if cb then cb:SetChecked(BM.db.locked) end
+        local cb = _G["ffsCB_locked"]
+        if cb then cb:SetChecked(FFS.db.locked) end
     end
 
     Button("解锁所有组件 (拖动定位)", function()
         if InCombatLockdown() then
-            print("|cFFFF5555badomeow:|r 战斗中无法解锁"); return
+            print("|cFFFF5555豹读诗书:|r 战斗中无法解锁"); return
         end
-        BM.db.locked = false
+        FFS.db.locked = false
         SyncLockedCheckbox()
-        if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
-        print("|cFF00FF00badomeow:|r 已解锁，拖动各组件到想要的位置。Shift+拖动=整体移动。右键=快速锁定/解锁。")
+        if FFS.UpdateSectionLockState then FFS.UpdateSectionLockState() end
+        print("|cFF00FF00豹读诗书:|r 已解锁，拖动各组件到想要的位置。Shift+拖动=整体移动。右键=快速锁定/解锁。")
     end)
 
     Button("锁定所有组件", function()
-        BM.db.locked = true
+        FFS.db.locked = true
         SyncLockedCheckbox()
-        if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
-        print("|cFF00FF00badomeow:|r 已锁定")
+        if FFS.UpdateSectionLockState then FFS.UpdateSectionLockState() end
+        print("|cFF00FF00豹读诗书:|r 已锁定")
     end)
 
     Button("重置所有位置", function()
-        if BM.ResetAllPositions then BM.ResetAllPositions() end
-        print("|cFF00FF00badomeow:|r 所有组件位置已重置")
+        if FFS.ResetAllPositions then FFS.ResetAllPositions() end
+        print("|cFF00FF00豹读诗书:|r 所有组件位置已重置")
     end)
 
     Divider()
@@ -314,13 +314,13 @@ local function CreateOptionsPanel()
     -- About
     ---------------------------------------------------------------------------
     Header("命令列表")
-    InfoText("/bdm — 打开此设置面板")
-    InfoText("/bdm lock — 锁定所有组件")
-    InfoText("/bdm unlock — 解锁所有组件（可拖动）")
-    InfoText("/bdm reset — 重置所有组件位置到默认")
-    InfoText("/bdm debug — 打印 CooldownViewer 状态（调试用）")
+    InfoText("/ffs — 打开此设置面板")
+    InfoText("/ffs lock — 锁定所有组件")
+    InfoText("/ffs unlock — 解锁所有组件（可拖动）")
+    InfoText("/ffs reset — 重置所有组件位置到默认")
+    InfoText("/ffs debug — 打印 CooldownViewer 状态（调试用）")
     Spacer(4)
-    InfoText("别名: /badomeow, /bado（与 /bdm 功能相同）")
+    InfoText("别名: /forferalsake")
     Spacer(4)
     InfoText("解锁后操作:")
     InfoText("  左键拖动 — 移动单个组件")
@@ -331,7 +331,7 @@ local function CreateOptionsPanel()
     Divider()
 
     Header("关于")
-    InfoText("badomeow v" .. BM.VERSION .. " | MIT License")
+    InfoText("至暗.八方.豹读诗书.哈基米要你命三千八 v" .. FFS.VERSION .. " | MIT License")
     InfoText("基于暴雪 CooldownViewer 系统，自动同步所有职业/专精技能数据")
     InfoText("灵感: Ayije_CDM, WeakAuras2, SenseiClassResourceBar")
 
@@ -339,43 +339,43 @@ local function CreateOptionsPanel()
     -- Show/hide preview when settings panel opens/closes
     ---------------------------------------------------------------------------
     panel:HookScript("OnShow", function()
-        BM.settingsOpen = true
-        if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
-        BM.UpdateVisibility()
+        FFS.settingsOpen = true
+        if FFS.UpdateSectionLockState then FFS.UpdateSectionLockState() end
+        FFS.UpdateVisibility()
     end)
     panel:HookScript("OnHide", function()
-        BM.settingsOpen = false
-        if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
+        FFS.settingsOpen = false
+        if FFS.UpdateSectionLockState then FFS.UpdateSectionLockState() end
     end)
 
     return panel
 end
 
-function BM.InitSettings()
+function FFS.InitSettings()
     if settingsRegistered then return end
     settingsRegistered = true
 
-    L = BM.L or {}
+    L = FFS.L or {}
     local panel = CreateOptionsPanel()
 
     if SettingsPanel then
-        local category = Settings.RegisterCanvasLayoutCategory(panel, "badomeow")
+        local category = Settings.RegisterCanvasLayoutCategory(panel, "ForFeralSake")
         Settings.RegisterAddOnCategory(category)
-        BM.settingsCategory = category
+        FFS.settingsCategory = category
     elseif InterfaceOptions_AddCategory then
         InterfaceOptions_AddCategory(panel)
     end
 
-    BM.optionsPanel = panel
+    FFS.optionsPanel = panel
 end
 
-function BM.OpenSettings()
-    if BM.settingsCategory then
-        Settings.OpenToCategory(BM.settingsCategory.ID)
+function FFS.OpenSettings()
+    if FFS.settingsCategory then
+        Settings.OpenToCategory(FFS.settingsCategory.ID)
         return
     end
-    if BM.optionsPanel and InterfaceOptionsFrame_OpenToCategory then
-        InterfaceOptionsFrame_OpenToCategory(BM.optionsPanel)
-        InterfaceOptionsFrame_OpenToCategory(BM.optionsPanel)
+    if FFS.optionsPanel and InterfaceOptionsFrame_OpenToCategory then
+        InterfaceOptionsFrame_OpenToCategory(FFS.optionsPanel)
+        InterfaceOptionsFrame_OpenToCategory(FFS.optionsPanel)
     end
 end

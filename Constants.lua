@@ -1,32 +1,32 @@
-local addonName, BM = ...
+local addonName, FFS = ...
 
-BM.ADDON_NAME = addonName
-BM.VERSION = "4.0.0"
+FFS.ADDON_NAME = addonName
+FFS.VERSION = "1.0.0"
 
-BM.DRUID_CLASS_ID = 11
+FFS.DRUID_CLASS_ID = 11
 
-BM.SpecNames = {
+FFS.SpecNames = {
     [102] = "Balance",
     [103] = "Feral",
     [104] = "Guardian",
     [105] = "Restoration",
 }
 
-BM.SpecNamesCN = {
+FFS.SpecNamesCN = {
     [102] = "平衡",
     [103] = "野性",
     [104] = "守护",
     [105] = "恢复",
 }
 
-BM.VIEWERS = {
+FFS.VIEWERS = {
     ESSENTIAL = "EssentialCooldownViewer",
     UTILITY   = "UtilityCooldownViewer",
     BUFF      = "BuffIconCooldownViewer",
     BUFF_BAR  = "BuffBarCooldownViewer",
 }
 
-BM.ComboPipColors = {
+FFS.ComboPipColors = {
     [1] = { 1.0, 0.9, 0.2 },
     [2] = { 1.0, 0.7, 0.1 },
     [3] = { 1.0, 0.5, 0.0 },
@@ -34,7 +34,7 @@ BM.ComboPipColors = {
     [5] = { 1.0, 0.1, 0.0 },
 }
 
-BM.Styles = {
+FFS.Styles = {
     ["default"] = {
         name        = "默认 / Default",
         borderColor = { 0.3, 0.8, 0.3, 0.8 },
@@ -44,8 +44,8 @@ BM.Styles = {
     },
 }
 
-BM.SECTIONS = { "buff", "secondary", "primary", "mana", "essential", "utility" }
-BM.SECTION_LABELS = {
+FFS.SECTIONS = { "buff", "secondary", "primary", "mana", "essential", "utility" }
+FFS.SECTION_LABELS = {
     buff      = "增益/触发",
     secondary = "连击点",
     primary   = "资源条",
@@ -54,7 +54,7 @@ BM.SECTION_LABELS = {
     utility   = "工具技能",
 }
 
-BM.DefaultDB = {
+FFS.DefaultDB = {
     enabled         = true,
     locked          = true,
     globalOffsetX   = 0,
@@ -77,7 +77,6 @@ BM.DefaultDB = {
     buffSize        = 30,
     utilitySize     = 26,
     iconSpacing     = 2,
-    -- Per-section position (relative to CENTER of screen)
     pos_essential   = { x = 0,   y = -220 },
     pos_buff        = { x = 0,   y = -180 },
     pos_utility     = { x = 0,   y = -290 },
