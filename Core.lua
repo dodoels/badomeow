@@ -12,13 +12,9 @@ local inCombat = false
 local hasTarget = false
 local isVisible = false
 
--- Shapeshift form IDs for Druid
-local FORM_NONE    = 0
-local FORM_CAT     = 2
-local FORM_TRAVEL  = 3
-local FORM_BEAR    = 1
-local FORM_MOONKIN = 4
--- Note: GetShapeshiftFormID() returns form index, varies by spec
+-- GetShapeshiftFormID() returns global constant IDs (not stance bar index)
+-- WoW globals: CAT_FORM=1, BEAR_FORM=5, MOONKIN_FORM=31-35
+-- We use the globals directly so no local definitions needed
 
 -- ==========================================
 -- Utility
@@ -62,7 +58,9 @@ end
 -- ==========================================
 local function DetectFormOverride()
     local formID = GetShapeshiftFormID()
-    if formID == FORM_CAT then
+    if not formID then return nil end
+
+    if formID == CAT_FORM then
         return {
             powerType = Enum.PowerType.Energy,
             secondaryPower = Enum.PowerType.ComboPoints,
@@ -70,7 +68,7 @@ local function DetectFormOverride()
             powerLabel = "能量",
             secondaryLabel = "连击点",
         }
-    elseif formID == FORM_BEAR then
+    elseif formID == BEAR_FORM then
         return {
             powerType = Enum.PowerType.Rage,
             secondaryPower = nil,
@@ -171,6 +169,7 @@ function BM.OnFormChanged()
     if formID == lastFormID then return end
     lastFormID = formID
     if BM.RebuildResourceBars then BM.RebuildResourceBars() end
+    BM.UpdateVisibility()
 end
 
 -- ==========================================
