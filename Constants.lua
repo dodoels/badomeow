@@ -76,6 +76,7 @@ FFS.DefaultDB = {
     essentialSize   = 36,
     buffSize        = 30,
     utilitySize     = 26,
+    useMasque       = true,
     iconSpacing     = 2,
     pos_essential   = { x = 0,   y = -220 },
     pos_buff        = { x = 0,   y = -180 },
