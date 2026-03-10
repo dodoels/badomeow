@@ -42,29 +42,39 @@ function FFS.InitTextureRegistry()
         FFS.BarTextureList[#FFS.BarTextureList + 1] = t
     end
 
-    -- Load user texture manifest if it exists
-    local manifest = FFS.db and FFS.db.customTextures
-    if manifest then
-        for _, entry in ipairs(manifest) do
-            if entry.type == "overlay" then
-                FFS.TextureList[#FFS.TextureList + 1] = {
-                    id = "custom_" .. entry.name,
-                    name = entry.name,
-                    path = ADDON_TEX_PATH .. entry.file,
-                    custom = true,
-                }
-            elseif entry.type == "bar" then
-                FFS.BarTextureList[#FFS.BarTextureList + 1] = {
-                    id = "custom_" .. entry.name,
-                    name = entry.name,
-                    path = ADDON_TEX_PATH .. entry.file,
-                    custom = true,
-                }
-            end
+    -- Load from auto-generated TextureManifest (generate_manifest.py)
+    if FFS.TextureManifest then
+        for _, entry in ipairs(FFS.TextureManifest) do
+            local id = "tex_" .. entry.name
+            FFS.TextureList[#FFS.TextureList + 1] = {
+                id = id,
+                name = entry.name,
+                path = entry.path,
+                custom = true,
+            }
+            FFS.BarTextureList[#FFS.BarTextureList + 1] = {
+                id = id,
+                name = entry.name,
+                path = entry.path,
+                custom = true,
+            }
         end
     end
 
-    -- Also allow direct path input (power user feature)
+    -- Load user-registered custom textures from saved variables
+    local manifest = FFS.db and FFS.db.customTextures
+    if manifest then
+        for _, entry in ipairs(manifest) do
+            local id = "user_" .. entry.name
+            local fullPath = ADDON_TEX_PATH .. entry.file
+            FFS.TextureList[#FFS.TextureList + 1] = {
+                id = id, name = entry.name, path = fullPath, custom = true,
+            }
+            FFS.BarTextureList[#FFS.BarTextureList + 1] = {
+                id = id, name = entry.name, path = fullPath, custom = true,
+            }
+        end
+    end
 end
 
 function FFS.GetTexturePath(id)

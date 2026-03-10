@@ -386,20 +386,82 @@ local function CreateOptionsPanel()
                 FFS.RefreshOverlays()
             end)
 
-            -- Path input
-            local yPath = NextY(28)
+            -- Texture picker dropdown
+            local yPick = NextY(28)
+            local pickLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            pickLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 40, yPick)
+            pickLabel:SetText("素材:")
+
+            local pickBtn = CreateFrame("Button", "ffsOvPick" .. idx, content, "UIPanelButtonTemplate")
+            pickBtn:SetPoint("TOPLEFT", content, "TOPLEFT", 80, yPick)
+            pickBtn:SetSize(200, 20)
+
+            local pathBox = CreateFrame("EditBox", "ffsOverlayPath" .. idx, content, "InputBoxTemplate")
+
+            local function UpdatePickLabel()
+                local curPath = GetCfg().texturePath or ""
+                if curPath == "" then
+                    pickBtn:SetText("选择素材...")
+                else
+                    local found = false
+                    for _, t in ipairs(FFS.TextureList or {}) do
+                        if t.path == curPath then
+                            pickBtn:SetText(t.name)
+                            found = true
+                            break
+                        end
+                    end
+                    if not found then
+                        local short = curPath:match("([^\\]+)$") or curPath
+                        pickBtn:SetText(short)
+                    end
+                end
+                pathBox:SetText(curPath)
+            end
+            UpdatePickLabel()
+
+            pickBtn:SetScript("OnClick", function(self)
+                local menu = {}
+                menu[#menu + 1] = {
+                    text = "无 / None",
+                    func = function()
+                        GetCfg().texturePath = ""
+                        UpdatePickLabel()
+                        FFS.RefreshOverlays()
+                    end,
+                }
+                for _, t in ipairs(FFS.TextureList or {}) do
+                    if t.path and t.path ~= "" then
+                        menu[#menu + 1] = {
+                            text = t.name,
+                            checked = (GetCfg().texturePath == t.path),
+                            func = function()
+                                GetCfg().texturePath = t.path
+                                UpdatePickLabel()
+                                FFS.RefreshOverlays()
+                            end,
+                        }
+                    end
+                end
+                local dd = CreateFrame("Frame", "ffsOvMenu" .. idx, UIParent, "UIDropDownMenuTemplate")
+                EasyMenu(menu, dd, self, 0, 0, "MENU")
+            end)
+
+            -- Manual path input (power user)
+            local yPath = NextY(24)
             local pathLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             pathLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 40, yPath)
             pathLabel:SetText("路径:")
 
-            local pathBox = CreateFrame("EditBox", "ffsOverlayPath" .. idx, content, "InputBoxTemplate")
+            pathBox:SetParent(content)
             pathBox:SetPoint("TOPLEFT", content, "TOPLEFT", 80, yPath + 2)
-            pathBox:SetSize(330, 20)
+            pathBox:SetSize(330, 18)
             pathBox:SetAutoFocus(false)
             pathBox:SetText(GetCfg().texturePath or "")
             pathBox:SetScript("OnEnterPressed", function(self)
                 GetCfg().texturePath = self:GetText()
                 self:ClearFocus()
+                UpdatePickLabel()
                 FFS.RefreshOverlays()
             end)
             pathBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
