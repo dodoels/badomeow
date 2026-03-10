@@ -64,6 +64,9 @@ local function ShouldShow()
     if not isDruid then return false end
     if currentSpecID == 0 then return false end
 
+    -- Always show when unlocked so the user can drag it
+    if not BM.db.locked then return true end
+
     local vis = BM.db.visibility
     if vis == "always" then return true end
     if vis == "hidden" then return false end
@@ -74,6 +77,7 @@ local function ShouldShow()
 end
 
 function BM.UpdateVisibility()
+    if not MainFrame then return end
     local shouldShow = ShouldShow()
     if shouldShow and not isVisible then
         MainFrame:SetAlpha(1)
@@ -82,6 +86,17 @@ function BM.UpdateVisibility()
     elseif not shouldShow and isVisible then
         MainFrame:Hide()
         isVisible = false
+    end
+
+    -- Show drag hint when unlocked
+    if MainFrame.title then
+        if not BM.db.locked and isVisible then
+            local specCN = BM.SpecNamesCN[currentSpecID] or ""
+            MainFrame.title:SetText("豹集 · " .. specCN .. "  |cFFFFFF00[拖动移动 / 右键锁定]|r")
+        elseif isVisible then
+            local specCN = BM.SpecNamesCN[currentSpecID] or ""
+            MainFrame.title:SetText("豹集 · " .. specCN)
+        end
     end
 end
 
