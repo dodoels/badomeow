@@ -159,6 +159,7 @@ local function CreateOptionsPanel()
     Checkbox("工具技能 (Utility)", "showUtility")
     Checkbox("资源条 (Primary Bar)", "showPrimaryBar")
     Checkbox("连击点 (Combo Points)", "showSecondaryBar")
+    Checkbox("蓝条 (Mana Bar)", "showManaBar")
 
     Divider()
 
@@ -181,6 +182,14 @@ local function CreateOptionsPanel()
     Header("资源条样式")
     Slider("资源条宽度", "barWidth", 100, 500, 5)
     Slider("资源条高度", "barHeight", 8, 50, 1)
+    Spacer(6)
+    InfoText("连击点 (Combo Points) 尺寸")
+    Slider("连击点宽度", "pipWidth", 60, 500, 5)
+    Slider("连击点高度", "pipHeight", 4, 30, 1)
+    Spacer(6)
+    InfoText("蓝条 (Mana) — 变身时显示在主资源下方")
+    Slider("蓝条宽度", "manaBarWidth", 60, 500, 5)
+    Slider("蓝条高度", "manaBarHeight", 4, 30, 1)
 
     Divider()
 

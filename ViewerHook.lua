@@ -58,6 +58,7 @@ local function IsSectionEnabled(section)
     if section == "utility"   then return db.showUtility ~= false end
     if section == "primary"   then return db.showPrimaryBar ~= false end
     if section == "secondary" then return db.showSecondaryBar ~= false end
+    if section == "mana"      then return db.showManaBar ~= false end
     return true
 end
 

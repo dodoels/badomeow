@@ -44,11 +44,12 @@ BM.Styles = {
     },
 }
 
-BM.SECTIONS = { "buff", "secondary", "primary", "essential", "utility" }
+BM.SECTIONS = { "buff", "secondary", "primary", "mana", "essential", "utility" }
 BM.SECTION_LABELS = {
     buff      = "增益/触发",
     secondary = "连击点",
     primary   = "资源条",
+    mana      = "蓝条",
     essential = "核心技能",
     utility   = "工具技能",
 }
@@ -62,9 +63,14 @@ BM.DefaultDB = {
     showUtility     = true,
     showPrimaryBar  = true,
     showSecondaryBar = true,
+    showManaBar     = true,
     scale           = 1.0,
     barWidth        = 260,
     barHeight       = 18,
+    pipWidth        = 260,
+    pipHeight       = 10,
+    manaBarWidth    = 260,
+    manaBarHeight   = 10,
     essentialSize   = 36,
     buffSize        = 30,
     utilitySize     = 26,
@@ -75,4 +81,5 @@ BM.DefaultDB = {
     pos_utility     = { x = 0,   y = -290 },
     pos_primary     = { x = 0,   y = -255 },
     pos_secondary   = { x = 0,   y = -240 },
+    pos_mana        = { x = 0,   y = -270 },
 }

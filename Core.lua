@@ -36,14 +36,22 @@ function BM.GetCurrentSpecID() return currentSpecID end
 function BM.GetEffectiveResourceData()
     local formID = GetShapeshiftFormID()
     if formID == CAT_FORM then
-        return { powerType = Enum.PowerType.Energy, secondaryPower = Enum.PowerType.ComboPoints, maxSecondary = 5 }
+        return {
+            powerType = Enum.PowerType.Energy,
+            secondaryPower = Enum.PowerType.ComboPoints,
+            maxSecondary = 5,
+            showMana = true,
+        }
     elseif formID == BEAR_FORM then
-        return { powerType = Enum.PowerType.Rage }
+        return {
+            powerType = Enum.PowerType.Rage,
+            showMana = true,
+        }
     end
-    if currentSpecID == 102 then return { powerType = Enum.PowerType.LunarPower }
-    elseif currentSpecID == 103 then return { powerType = Enum.PowerType.Energy, secondaryPower = Enum.PowerType.ComboPoints, maxSecondary = 5 }
-    elseif currentSpecID == 104 then return { powerType = Enum.PowerType.Rage }
-    elseif currentSpecID == 105 then return { powerType = Enum.PowerType.Mana }
+    if currentSpecID == 102 then return { powerType = Enum.PowerType.LunarPower, showMana = true }
+    elseif currentSpecID == 103 then return { powerType = Enum.PowerType.Energy, secondaryPower = Enum.PowerType.ComboPoints, maxSecondary = 5, showMana = false }
+    elseif currentSpecID == 104 then return { powerType = Enum.PowerType.Rage, showMana = false }
+    elseif currentSpecID == 105 then return { powerType = Enum.PowerType.Mana, showMana = false }
     end
     return nil
 end

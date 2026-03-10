@@ -1,41 +1,47 @@
 local addonName, BM = ...
 
-local primaryBar, primaryText
+local primaryBar, primaryText, primaryBg
 local secondaryContainer
 local secondaryPips = {}
 local MAX_PIPS = 5
+local manaBar, manaText, manaBg
 local powerFrame
 
-local function GetPrimaryParent()
-    if BM.sectionFrames and BM.sectionFrames["primary"] then
-        return BM.sectionFrames["primary"]
+local function GetParent(section)
+    if BM.sectionFrames and BM.sectionFrames[section] then
+        return BM.sectionFrames[section]
     end
     return UIParent
 end
 
-local function GetSecondaryParent()
-    if BM.sectionFrames and BM.sectionFrames["secondary"] then
-        return BM.sectionFrames["secondary"]
-    end
-    return UIParent
-end
-
+---------------------------------------------------------------------------
+-- Destroy
+---------------------------------------------------------------------------
 local function DestroyBars()
     if primaryBar then primaryBar:Hide(); primaryBar:SetParent(nil) end
     if secondaryContainer then secondaryContainer:Hide(); secondaryContainer:SetParent(nil) end
     for _, pip in ipairs(secondaryPips) do pip:Hide(); pip:SetParent(nil) end
+    if manaBar then manaBar:Hide(); manaBar:SetParent(nil) end
     primaryBar = nil
     primaryText = nil
+    primaryBg = nil
     secondaryContainer = nil
     secondaryPips = {}
+    manaBar = nil
+    manaText = nil
+    manaBg = nil
     BM.primaryBar = nil
     BM.secondaryContainer = nil
+    BM.manaBar = nil
 end
 
+---------------------------------------------------------------------------
+-- Primary bar (Energy / Rage / LunarPower / Mana)
+---------------------------------------------------------------------------
 local function CreatePrimaryBar(resData)
     local db = BM.db
     local style = BM.GetCurrentStyle()
-    local parent = GetPrimaryParent()
+    local parent = GetParent("primary")
 
     primaryBar = CreateFrame("StatusBar", "badomeowPrimaryBar", parent)
     primaryBar:SetSize(db.barWidth, db.barHeight)
@@ -54,10 +60,10 @@ local function CreatePrimaryBar(resData)
     primaryBar:SetMinMaxValues(0, maxPower > 0 and maxPower or 1)
     primaryBar:SetValue(UnitPower("player", resData.powerType))
 
-    local bg = primaryBar:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    bg:SetVertexColor(0.08, 0.08, 0.08, 0.6)
+    primaryBg = primaryBar:CreateTexture(nil, "BACKGROUND")
+    primaryBg:SetAllPoints()
+    primaryBg:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    primaryBg:SetVertexColor(0.08, 0.08, 0.08, 0.6)
 
     primaryText = primaryBar:CreateFontString(nil, "OVERLAY")
     primaryText:SetFont(style.fontName, style.fontSize, "OUTLINE")
@@ -68,22 +74,27 @@ local function CreatePrimaryBar(resData)
     BM.primaryBar = primaryBar
 end
 
+---------------------------------------------------------------------------
+-- Secondary pips (Combo Points)
+---------------------------------------------------------------------------
 local function CreateSecondaryPips(resData)
     if not resData.secondaryPower then return end
     local db = BM.db
     local maxPips = resData.maxSecondary or MAX_PIPS
-    local parent = GetSecondaryParent()
+    local parent = GetParent("secondary")
+    local pipW = db.pipWidth or 260
+    local pipH = db.pipHeight or 10
 
     secondaryContainer = CreateFrame("Frame", "badomeowSecondaryBar", parent)
     secondaryContainer:SetAllPoints(parent)
 
     local gap = 1
-    local pipWidth = (db.barWidth - (maxPips - 1) * gap) / maxPips
+    local singleW = (pipW - (maxPips - 1) * gap) / maxPips
 
     for i = 1, maxPips do
         local pip = CreateFrame("Frame", nil, secondaryContainer, "BackdropTemplate")
-        pip:SetSize(pipWidth, 8)
-        pip:SetPoint("LEFT", secondaryContainer, "LEFT", (i - 1) * (pipWidth + gap), 0)
+        pip:SetSize(singleW, pipH)
+        pip:SetPoint("LEFT", secondaryContainer, "LEFT", (i - 1) * (singleW + gap), 0)
         pip:SetBackdrop({
             bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
             tile = true, tileSize = 8,
@@ -98,10 +109,47 @@ local function CreateSecondaryPips(resData)
         secondaryPips[i] = pip
     end
 
-    parent:SetSize(db.barWidth, 10)
+    parent:SetSize(pipW, pipH)
     BM.secondaryContainer = secondaryContainer
 end
 
+---------------------------------------------------------------------------
+-- Mana bar (shown in shifted forms alongside main resource)
+---------------------------------------------------------------------------
+local function CreateManaBar()
+    local db = BM.db
+    local style = BM.GetCurrentStyle()
+    local parent = GetParent("mana")
+    local mW = db.manaBarWidth or 260
+    local mH = db.manaBarHeight or 10
+
+    manaBar = CreateFrame("StatusBar", "badomeowManaBar", parent)
+    manaBar:SetSize(mW, mH)
+    manaBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    manaBar:SetAllPoints(parent)
+    manaBar:SetStatusBarColor(0.2, 0.4, 1.0)
+
+    local maxMana = UnitPowerMax("player", Enum.PowerType.Mana)
+    manaBar:SetMinMaxValues(0, maxMana > 0 and maxMana or 1)
+    manaBar:SetValue(UnitPower("player", Enum.PowerType.Mana))
+
+    manaBg = manaBar:CreateTexture(nil, "BACKGROUND")
+    manaBg:SetAllPoints()
+    manaBg:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    manaBg:SetVertexColor(0.08, 0.08, 0.08, 0.6)
+
+    manaText = manaBar:CreateFontString(nil, "OVERLAY")
+    manaText:SetFont(style.fontName, math.max(style.fontSize - 2, 8), "OUTLINE")
+    manaText:SetPoint("CENTER")
+    manaText:SetTextColor(1, 1, 1, 1)
+
+    parent:SetSize(mW, mH)
+    BM.manaBar = manaBar
+end
+
+---------------------------------------------------------------------------
+-- Update functions
+---------------------------------------------------------------------------
 local function UpdatePrimary()
     if not primaryBar then return end
     local resData = BM.GetEffectiveResourceData()
@@ -151,14 +199,64 @@ local function UpdateSecondary()
     lastSecondary = current
 end
 
+local function UpdateMana()
+    if not manaBar then return end
+    local current = UnitPower("player", Enum.PowerType.Mana)
+    local maximum = UnitPowerMax("player", Enum.PowerType.Mana)
+    if maximum <= 0 then maximum = 1 end
+    manaBar:SetMinMaxValues(0, maximum)
+    manaBar:SetValue(current)
+    manaText:SetText(string.format("%.0f%%", current / maximum * 100))
+end
+
+---------------------------------------------------------------------------
+-- Section visibility based on form
+---------------------------------------------------------------------------
+local function UpdateSectionVisibility()
+    local resData = BM.GetEffectiveResourceData()
+    if not resData then return end
+
+    local secFrame = BM.sectionFrames and BM.sectionFrames["secondary"]
+    if secFrame then
+        if resData.secondaryPower and BM.db.showSecondaryBar ~= false then
+            secFrame:Show()
+        else
+            secFrame:Hide()
+        end
+    end
+
+    local manaFrame = BM.sectionFrames and BM.sectionFrames["mana"]
+    if manaFrame then
+        if resData.showMana and BM.db.showManaBar ~= false then
+            manaFrame:Show()
+        else
+            manaFrame:Hide()
+        end
+    end
+end
+
+---------------------------------------------------------------------------
+-- Build / Rebuild
+---------------------------------------------------------------------------
 function BM.RebuildResourceBars()
     DestroyBars()
     local resData = BM.GetEffectiveResourceData()
     if not resData then return end
+
     CreatePrimaryBar(resData)
-    CreateSecondaryPips(resData)
     UpdatePrimary()
-    UpdateSecondary()
+
+    if resData.secondaryPower then
+        CreateSecondaryPips(resData)
+        UpdateSecondary()
+    end
+
+    if resData.showMana then
+        CreateManaBar()
+        UpdateMana()
+    end
+
+    UpdateSectionVisibility()
 end
 
 function BM.InitResourceBars()
@@ -168,6 +266,7 @@ function BM.InitResourceBars()
     powerFrame:SetScript("OnEvent", function()
         UpdatePrimary()
         UpdateSecondary()
+        UpdateMana()
     end)
     BM.RebuildResourceBars()
 end
