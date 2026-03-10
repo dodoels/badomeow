@@ -1,27 +1,27 @@
 local addonName, BM = ...
 
 --[[
-    ViewerHook: Hooks Blizzard's 12.0 CooldownViewer system.
-    Mirrors spell icons from official viewers into our own compact layout.
-
-    Layout (top to bottom, no gaps, no labels):
-      [Essential icons]  - core cooldowns, full barWidth, large icons
-      [Combo pips]       - secondary resource (if any)
-      [Resource bar]     - primary resource
-      [Utility icons]    - utility cooldowns, small icons
+    Layout (top to bottom, zero gap, no labels):
+      [Essential]  core cooldowns, large icons
+      [Buff]       active buffs/procs with glow highlight
+      [Combo pips] secondary resource
+      [Resource]   primary bar
+      [Utility]    utility cooldowns, small icons
 ]]
 
 local VIEWERS = BM.VIEWERS
+local ALL_HOOKED = { VIEWERS.ESSENTIAL, VIEWERS.BUFF, VIEWERS.UTILITY }
 
 local hookedViewers = {}
 local hookedMixins = {}
 local mirrorIcons = {}
+local prevActiveBuffs = {}
 
-local essentialContainer
-local utilityContainer
+local essentialContainer, buffContainer, utilityContainer
 
-local ESSENTIAL_ICON_SIZE = 30
-local UTILITY_ICON_SIZE = 22
+local ESSENTIAL_SIZE = 30
+local BUFF_SIZE = 26
+local UTILITY_SIZE = 22
 local ICON_PAD = 1
 
 local function GetSpellIDFromFrame(frame)
@@ -42,6 +42,16 @@ local function GetSpellIDFromFrame(frame)
     return spellID
 end
 
+local function IsFrameActive(frame)
+    if not frame then return false end
+    if frame.IsActive and type(frame.IsActive) == "function" then
+        local ok, result = pcall(frame.IsActive, frame)
+        if ok then return result end
+    end
+    if frame.activeState ~= nil then return frame.activeState end
+    return frame:IsShown()
+end
+
 local function CreateMirrorIcon(parent, size)
     local f = CreateFrame("Frame", nil, parent)
     f:SetSize(size, size)
@@ -57,60 +67,93 @@ local function CreateMirrorIcon(parent, size)
     f.cd:SetDrawEdge(true)
     f.cd:SetHideCountdownNumbers(false)
 
+    -- Glow overlay for proc highlights
+    f.glow = f:CreateTexture(nil, "OVERLAY", nil, 2)
+    f.glow:SetPoint("TOPLEFT", -4, 4)
+    f.glow:SetPoint("BOTTOMRIGHT", 4, -4)
+    f.glow:SetTexture("Interface\\SpellActivationOverlay\\IconAlert")
+    f.glow:SetTexCoord(0, 0.5, 0, 0.5)
+    f.glow:SetVertexColor(1, 0.85, 0, 0.9)
+    f.glow:Hide()
+
+    -- Pulsing animation group for the glow
+    f.glowPulse = f.glow:CreateAnimationGroup()
+    f.glowPulse:SetLooping("BOUNCE")
+    local pulse = f.glowPulse:CreateAnimation("Alpha")
+    pulse:SetFromAlpha(0.5)
+    pulse:SetToAlpha(1.0)
+    pulse:SetDuration(0.6)
+    pulse:SetSmoothing("IN_OUT")
+
     f:Hide()
     return f
 end
 
 local function EnsureContainers()
-    if essentialContainer and utilityContainer then return end
+    if essentialContainer and buffContainer and utilityContainer then return end
     if not BM.MainFrame then return end
-
     local db = BM.db
 
     if not essentialContainer then
         essentialContainer = CreateFrame("Frame", nil, BM.MainFrame)
-        essentialContainer:SetSize(db.barWidth, ESSENTIAL_ICON_SIZE)
+        essentialContainer:SetSize(db.barWidth, ESSENTIAL_SIZE)
         essentialContainer:SetFrameLevel(BM.MainFrame:GetFrameLevel() + 1)
     end
-
+    if not buffContainer then
+        buffContainer = CreateFrame("Frame", nil, BM.MainFrame)
+        buffContainer:SetSize(db.barWidth, BUFF_SIZE)
+        buffContainer:SetFrameLevel(BM.MainFrame:GetFrameLevel() + 1)
+    end
     if not utilityContainer then
         utilityContainer = CreateFrame("Frame", nil, BM.MainFrame)
-        utilityContainer:SetSize(db.barWidth, UTILITY_ICON_SIZE)
+        utilityContainer:SetSize(db.barWidth, UTILITY_SIZE)
         utilityContainer:SetFrameLevel(BM.MainFrame:GetFrameLevel() + 1)
     end
 end
 
--- Core layout: position everything tightly
+local function ContainerForViewer(viewerName)
+    if viewerName == VIEWERS.ESSENTIAL then return essentialContainer
+    elseif viewerName == VIEWERS.BUFF then return buffContainer
+    elseif viewerName == VIEWERS.UTILITY then return utilityContainer
+    end
+end
+
+local function SizeForViewer(viewerName)
+    if viewerName == VIEWERS.ESSENTIAL then return ESSENTIAL_SIZE
+    elseif viewerName == VIEWERS.BUFF then return BUFF_SIZE
+    elseif viewerName == VIEWERS.UTILITY then return UTILITY_SIZE
+    end
+    return 24
+end
+
+local function HasVisibleIcons(viewerName)
+    local icons = mirrorIcons[viewerName]
+    if not icons then return false end
+    for _, ic in ipairs(icons) do
+        if ic:IsShown() then return true end
+    end
+    return false
+end
+
 function BM.LayoutAll()
     if not BM.MainFrame then return end
     EnsureContainers()
     local db = BM.db
     local w = db.barWidth
-
-    -- Build from bottom up
     local y = 0
 
-    -- Utility row (bottom)
-    if utilityContainer then
-        local hasIcons = false
-        local icons = mirrorIcons[VIEWERS.UTILITY]
-        if icons then
-            for _, ic in ipairs(icons) do
-                if ic:IsShown() then hasIcons = true; break end
-            end
-        end
-        if hasIcons then
-            utilityContainer:ClearAllPoints()
-            utilityContainer:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
-            utilityContainer:SetSize(w, UTILITY_ICON_SIZE)
-            utilityContainer:Show()
-            y = y + UTILITY_ICON_SIZE
-        else
-            utilityContainer:Hide()
-        end
+    -- Bottom: Utility
+    if HasVisibleIcons(VIEWERS.UTILITY) then
+        utilityContainer:ClearAllPoints()
+        utilityContainer:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
+        utilityContainer:SetSize(w, UTILITY_SIZE)
+        utilityContainer:Show()
+        y = y + UTILITY_SIZE
+    else
+        utilityContainer:Hide()
     end
 
-    -- Primary resource bar
+    -- Resource bar
     if BM.primaryBar then
         BM.primaryBar:ClearAllPoints()
         BM.primaryBar:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
@@ -118,7 +161,7 @@ function BM.LayoutAll()
         y = y + db.barHeight
     end
 
-    -- Secondary pips (combo points)
+    -- Combo pips
     if BM.secondaryContainer then
         BM.secondaryContainer:ClearAllPoints()
         BM.secondaryContainer:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
@@ -126,38 +169,30 @@ function BM.LayoutAll()
         y = y + 10
     end
 
-    -- Essential row (top)
-    if essentialContainer then
-        local hasIcons = false
-        local icons = mirrorIcons[VIEWERS.ESSENTIAL]
-        if icons then
-            for _, ic in ipairs(icons) do
-                if ic:IsShown() then hasIcons = true; break end
-            end
-        end
-        if hasIcons then
-            essentialContainer:ClearAllPoints()
-            essentialContainer:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
-            essentialContainer:SetSize(w, ESSENTIAL_ICON_SIZE)
-            essentialContainer:Show()
-            y = y + ESSENTIAL_ICON_SIZE
-        else
-            essentialContainer:Hide()
-        end
+    -- Buffs/procs
+    if HasVisibleIcons(VIEWERS.BUFF) then
+        buffContainer:ClearAllPoints()
+        buffContainer:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
+        buffContainer:SetSize(w, BUFF_SIZE)
+        buffContainer:Show()
+        y = y + BUFF_SIZE
+    else
+        buffContainer:Hide()
     end
 
-    -- Title bar space (only when unlocked)
-    if not db.locked then
-        y = y + 14
+    -- Top: Essential
+    if HasVisibleIcons(VIEWERS.ESSENTIAL) then
+        essentialContainer:ClearAllPoints()
+        essentialContainer:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
+        essentialContainer:SetSize(w, ESSENTIAL_SIZE)
+        essentialContainer:Show()
+        y = y + ESSENTIAL_SIZE
+    else
+        essentialContainer:Hide()
     end
 
+    if not db.locked then y = y + 14 end
     BM.MainFrame:SetSize(w, math.max(y, 20))
-end
-
-local function FormatTime(sec)
-    if sec > 60 then return string.format("%dm", sec / 60)
-    elseif sec > 3 then return string.format("%d", sec)
-    else return string.format("%.1f", sec) end
 end
 
 local function RefreshViewerMirror(viewerName)
@@ -165,20 +200,25 @@ local function RefreshViewerMirror(viewerName)
     if not viewer or not viewer.itemFramePool then return end
 
     EnsureContainers()
-    local isEssential = (viewerName == VIEWERS.ESSENTIAL)
-    local container = isEssential and essentialContainer or utilityContainer
+    local container = ContainerForViewer(viewerName)
     if not container then return end
 
-    local size = isEssential and ESSENTIAL_ICON_SIZE or UTILITY_ICON_SIZE
+    local size = SizeForViewer(viewerName)
+    local isBuff = (viewerName == VIEWERS.BUFF)
 
     if not mirrorIcons[viewerName] then mirrorIcons[viewerName] = {} end
     local icons = mirrorIcons[viewerName]
 
-    for _, ic in ipairs(icons) do ic:Hide() end
+    for _, ic in ipairs(icons) do
+        ic:Hide()
+        if ic.glow then ic.glow:Hide() end
+        if ic.glowPulse then ic.glowPulse:Stop() end
+    end
 
     local idx = 0
-    local spacing = isEssential and 2 or 1
+    local spacing = (viewerName == VIEWERS.UTILITY) and 1 or 2
     local now = GetTime()
+    local currentActiveBuffs = {}
 
     for frame in viewer.itemFramePool:EnumerateActive() do
         if frame:IsShown() then
@@ -198,17 +238,53 @@ local function RefreshViewerMirror(viewerName)
                 ic:ClearAllPoints()
                 ic:SetPoint("LEFT", container, "LEFT", (idx - 1) * (size + spacing), 0)
 
-                if frame.Cooldown then
-                    local cdStart, cdDuration = frame.Cooldown:GetCooldownTimes()
-                    if cdStart and cdDuration then
-                        cdStart = cdStart / 1000
-                        cdDuration = cdDuration / 1000
-                        if cdDuration > 1.5 then
-                            ic.cd:SetCooldown(cdStart, cdDuration)
-                            ic.icon:SetDesaturated(true)
-                        else
-                            ic.cd:Clear()
-                            ic.icon:SetDesaturated(false)
+                if isBuff then
+                    local active = IsFrameActive(frame)
+                    if active then
+                        ic.glow:Show()
+                        if not ic.glowPulse:IsPlaying() then
+                            ic.glowPulse:Play()
+                        end
+                        ic.icon:SetDesaturated(false)
+
+                        -- New proc detection: play sound on first appearance
+                        if not prevActiveBuffs[spellID] then
+                            BM.PlayAlertSound("proc")
+                        end
+                        currentActiveBuffs[spellID] = true
+                    else
+                        ic.glow:Hide()
+                        ic.glowPulse:Stop()
+                        ic.icon:SetDesaturated(true)
+                    end
+
+                    -- Mirror remaining duration via cooldown spinner
+                    if frame.Cooldown then
+                        local cdStart, cdDuration = frame.Cooldown:GetCooldownTimes()
+                        if cdStart and cdDuration then
+                            cdStart = cdStart / 1000
+                            cdDuration = cdDuration / 1000
+                            if cdDuration > 0 then
+                                ic.cd:SetCooldown(cdStart, cdDuration)
+                            else
+                                ic.cd:Clear()
+                            end
+                        end
+                    end
+                else
+                    -- Essential / Utility: show cooldown state
+                    if frame.Cooldown then
+                        local cdStart, cdDuration = frame.Cooldown:GetCooldownTimes()
+                        if cdStart and cdDuration then
+                            cdStart = cdStart / 1000
+                            cdDuration = cdDuration / 1000
+                            if cdDuration > 1.5 then
+                                ic.cd:SetCooldown(cdStart, cdDuration)
+                                ic.icon:SetDesaturated(true)
+                            else
+                                ic.cd:Clear()
+                                ic.icon:SetDesaturated(false)
+                            end
                         end
                     end
                 end
@@ -216,6 +292,10 @@ local function RefreshViewerMirror(viewerName)
                 ic:Show()
             end
         end
+    end
+
+    if isBuff then
+        prevActiveBuffs = currentActiveBuffs
     end
 
     container:Show()
@@ -253,6 +333,7 @@ local function HookMixins()
     local map = {
         CooldownViewerEssentialItemMixin = VIEWERS.ESSENTIAL,
         CooldownViewerUtilityItemMixin   = VIEWERS.UTILITY,
+        CooldownViewerBuffIconItemMixin  = VIEWERS.BUFF,
     }
 
     for mixinName, vName in pairs(map) do
@@ -282,7 +363,7 @@ refreshFrame:SetScript("OnUpdate", function(self, elapsed)
     refreshTimer = 0
     if not BM.MainFrame or not BM.MainFrame:IsShown() then return end
 
-    for _, vName in ipairs({ VIEWERS.ESSENTIAL, VIEWERS.UTILITY }) do
+    for _, vName in ipairs(ALL_HOOKED) do
         if _G[vName] then
             RefreshViewerMirror(vName)
         end
@@ -290,7 +371,7 @@ refreshFrame:SetScript("OnUpdate", function(self, elapsed)
 end)
 
 function BM.InitViewerHooks()
-    for _, vName in ipairs({ VIEWERS.ESSENTIAL, VIEWERS.UTILITY }) do
+    for _, vName in ipairs(ALL_HOOKED) do
         HookViewer(vName)
     end
     HookMixins()
