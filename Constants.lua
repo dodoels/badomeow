@@ -61,11 +61,24 @@ BM.Styles = {
     },
 }
 
+-- Section keys used for layout ordering and toggle
+BM.SECTIONS = { "buff", "secondary", "primary", "essential", "utility" }
+BM.SECTION_LABELS = {
+    buff      = "增益/触发",
+    secondary = "连击点",
+    primary   = "资源条",
+    essential = "核心技能",
+    utility   = "工具技能",
+}
+
 BM.DefaultDB = {
     enabled         = true,
     locked          = false,
     style           = "default",
     customBg        = nil,
+    showBuff        = true,
+    showEssential   = true,
+    showUtility     = true,
     showPrimaryBar  = true,
     showSecondaryBar = true,
     playProcSound   = true,
@@ -76,4 +89,6 @@ BM.DefaultDB = {
     barWidth        = 260,
     barHeight       = 18,
     soundVolume     = 1.0,
+    -- Layout order (top to bottom): each entry is a section key
+    layoutOrder     = { "buff", "secondary", "primary", "essential", "utility" },
 }

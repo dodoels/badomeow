@@ -15,7 +15,7 @@ local function CreateOptionsPanel()
     scrollFrame:SetPoint("BOTTOMRIGHT", -36, 16)
 
     local content = CreateFrame("Frame", nil, scrollFrame)
-    content:SetSize(560, 900)
+    content:SetSize(560, 1100)
     scrollFrame:SetScrollChild(content)
 
     local yOff = -10
@@ -105,9 +105,73 @@ local function CreateOptionsPanel()
     Checkbox(L["LOCK_FRAME"] or "锁定框体", "locked")
     Slider(L["SCALE"] or "缩放", "scale", 0.5, 2.0, 0.1)
 
-    Header("资源条")
-    Checkbox(L["SHOW_PRIMARY_BAR"] or "显示主资源条", "showPrimaryBar")
-    Checkbox(L["SHOW_SECONDARY_BAR"] or "显示副资源条（连击点等）", "showSecondaryBar")
+    Header("组件开关 / Section Toggles")
+    InfoText("分别控制每个区域的显示/隐藏。关闭后该区域不占空间。")
+    Checkbox("增益/触发 (Buff/Proc)", "showBuff")
+    Checkbox("核心技能 (Essential)", "showEssential")
+    Checkbox("工具技能 (Utility)", "showUtility")
+    Checkbox("资源条 (Primary Bar)", "showPrimaryBar")
+    Checkbox("连击点 (Combo Points)", "showSecondaryBar")
+
+    Header("组件排列顺序 / Layout Order")
+    InfoText("点击 ▲ / ▼ 调整各组件从上到下的排列顺序。")
+
+    local orderWidgets = {}
+    local function RebuildOrderWidgets()
+        local order = BM.db.layoutOrder or BM.SECTIONS
+        for i, w in ipairs(orderWidgets) do
+            local section = order[i]
+            if section then
+                local label = BM.SECTION_LABELS[section] or section
+                w.label:SetText(string.format("%d.  %s", i, label))
+                w.section = section
+                w:Show()
+            else
+                w:Hide()
+            end
+        end
+    end
+
+    for i = 1, #BM.SECTIONS do
+        local y = NextY(28)
+        local row = CreateFrame("Frame", nil, content)
+        row:SetPoint("TOPLEFT", content, "TOPLEFT", 10, y)
+        row:SetSize(400, 24)
+
+        row.label = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        row.label:SetPoint("LEFT", row, "LEFT", 0, 0)
+        row.label:SetJustifyH("LEFT")
+
+        local upBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+        upBtn:SetPoint("LEFT", row, "LEFT", 200, 0)
+        upBtn:SetSize(28, 22)
+        upBtn:SetText("▲")
+        upBtn:SetScript("OnClick", function()
+            if row.section then
+                BM.SwapSectionOrder(row.section, -1)
+                RebuildOrderWidgets()
+            end
+        end)
+
+        local downBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+        downBtn:SetPoint("LEFT", upBtn, "RIGHT", 2, 0)
+        downBtn:SetSize(28, 22)
+        downBtn:SetText("▼")
+        downBtn:SetScript("OnClick", function()
+            if row.section then
+                BM.SwapSectionOrder(row.section, 1)
+                RebuildOrderWidgets()
+            end
+        end)
+
+        orderWidgets[i] = row
+    end
+
+    -- Defer initial population until panel shows so db is ready
+    panel:HookScript("OnShow", function() RebuildOrderWidgets() end)
+
+    NextY(6)
+    Header("资源条样式 / Bar Style")
     Slider(L["BAR_WIDTH"] or "条宽度", "barWidth", 150, 450, 10)
     Slider(L["BAR_HEIGHT"] or "条高度", "barHeight", 10, 40, 2)
 
@@ -123,6 +187,13 @@ local function CreateOptionsPanel()
             BM.MainFrame:ClearAllPoints()
             BM.MainFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -200)
         end
+    end)
+
+    Button("重置排列顺序", function()
+        BM.db.layoutOrder = { "buff", "secondary", "primary", "essential", "utility" }
+        RebuildOrderWidgets()
+        BM.LayoutAll()
+        print("|cFF00FF00badomeow:|r 排列顺序已重置")
     end)
 
     Button("解锁框体 (拖动移动)", function()
@@ -144,7 +215,6 @@ local function CreateOptionsPanel()
     return panel
 end
 
--- MRT-style registration
 function BM.InitSettings()
     if settingsRegistered then return end
     settingsRegistered = true

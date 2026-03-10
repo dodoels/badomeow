@@ -1,12 +1,16 @@
 local addonName, BM = ...
 
 --[[
-    Layout (top to bottom, zero gap, no labels):
-      [Essential]  core cooldowns, large icons
+    ViewerHook: Hooks Blizzard's 12.0 CooldownViewer system.
+
+    Default layout (top to bottom, configurable order):
       [Buff]       active buffs/procs with glow highlight
       [Combo pips] secondary resource
       [Resource]   primary bar
+      [Essential]  core cooldowns
       [Utility]    utility cooldowns, small icons
+
+    Each section can be toggled on/off and reordered via layoutOrder.
 ]]
 
 local VIEWERS = BM.VIEWERS
@@ -17,12 +21,23 @@ local hookedMixins = {}
 local mirrorIcons = {}
 local prevActiveBuffs = {}
 
-local essentialContainer, buffContainer, utilityContainer
+local containers = {}
 
-local ESSENTIAL_SIZE = 30
-local BUFF_SIZE = 26
-local UTILITY_SIZE = 22
+local SECTION_SIZES = {
+    buff      = 26,
+    essential = 30,
+    utility   = 22,
+    secondary = 10,
+    primary   = nil, -- uses db.barHeight
+}
+
 local ICON_PAD = 1
+
+local SECTION_VIEWER_MAP = {
+    buff      = VIEWERS.BUFF,
+    essential = VIEWERS.ESSENTIAL,
+    utility   = VIEWERS.UTILITY,
+}
 
 local function GetSpellIDFromFrame(frame)
     if not frame then return nil end
@@ -67,7 +82,6 @@ local function CreateMirrorIcon(parent, size)
     f.cd:SetDrawEdge(true)
     f.cd:SetHideCountdownNumbers(false)
 
-    -- Glow overlay for proc highlights
     f.glow = f:CreateTexture(nil, "OVERLAY", nil, 2)
     f.glow:SetPoint("TOPLEFT", -4, 4)
     f.glow:SetPoint("BOTTOMRIGHT", 4, -4)
@@ -76,7 +90,6 @@ local function CreateMirrorIcon(parent, size)
     f.glow:SetVertexColor(1, 0.85, 0, 0.9)
     f.glow:Hide()
 
-    -- Pulsing animation group for the glow
     f.glowPulse = f.glow:CreateAnimationGroup()
     f.glowPulse:SetLooping("BOUNCE")
     local pulse = f.glowPulse:CreateAnimation("Alpha")
@@ -89,41 +102,18 @@ local function CreateMirrorIcon(parent, size)
     return f
 end
 
-local function EnsureContainers()
-    if essentialContainer and buffContainer and utilityContainer then return end
-    if not BM.MainFrame then return end
-    local db = BM.db
-
-    if not essentialContainer then
-        essentialContainer = CreateFrame("Frame", nil, BM.MainFrame)
-        essentialContainer:SetSize(db.barWidth, ESSENTIAL_SIZE)
-        essentialContainer:SetFrameLevel(BM.MainFrame:GetFrameLevel() + 1)
-    end
-    if not buffContainer then
-        buffContainer = CreateFrame("Frame", nil, BM.MainFrame)
-        buffContainer:SetSize(db.barWidth, BUFF_SIZE)
-        buffContainer:SetFrameLevel(BM.MainFrame:GetFrameLevel() + 1)
-    end
-    if not utilityContainer then
-        utilityContainer = CreateFrame("Frame", nil, BM.MainFrame)
-        utilityContainer:SetSize(db.barWidth, UTILITY_SIZE)
-        utilityContainer:SetFrameLevel(BM.MainFrame:GetFrameLevel() + 1)
-    end
+local function EnsureContainer(section)
+    if containers[section] then return containers[section] end
+    if not BM.MainFrame then return nil end
+    local c = CreateFrame("Frame", nil, BM.MainFrame)
+    c:SetFrameLevel(BM.MainFrame:GetFrameLevel() + 1)
+    containers[section] = c
+    return c
 end
 
-local function ContainerForViewer(viewerName)
-    if viewerName == VIEWERS.ESSENTIAL then return essentialContainer
-    elseif viewerName == VIEWERS.BUFF then return buffContainer
-    elseif viewerName == VIEWERS.UTILITY then return utilityContainer
-    end
-end
-
-local function SizeForViewer(viewerName)
-    if viewerName == VIEWERS.ESSENTIAL then return ESSENTIAL_SIZE
-    elseif viewerName == VIEWERS.BUFF then return BUFF_SIZE
-    elseif viewerName == VIEWERS.UTILITY then return UTILITY_SIZE
-    end
-    return 24
+local function ViewerForSection(section)
+    local vName = SECTION_VIEWER_MAP[section]
+    return vName and _G[vName] or nil
 end
 
 local function HasVisibleIcons(viewerName)
@@ -135,60 +125,69 @@ local function HasVisibleIcons(viewerName)
     return false
 end
 
+local function IsSectionEnabled(section)
+    local db = BM.db
+    if section == "buff" then return db.showBuff ~= false end
+    if section == "essential" then return db.showEssential ~= false end
+    if section == "utility" then return db.showUtility ~= false end
+    if section == "primary" then return db.showPrimaryBar ~= false end
+    if section == "secondary" then return db.showSecondaryBar ~= false end
+    return true
+end
+
+local function SectionHasContent(section)
+    if not IsSectionEnabled(section) then return false end
+    if section == "primary" then return BM.primaryBar ~= nil end
+    if section == "secondary" then return BM.secondaryContainer ~= nil end
+    local vName = SECTION_VIEWER_MAP[section]
+    if vName then return HasVisibleIcons(vName) end
+    return false
+end
+
+local function SectionHeight(section)
+    if section == "primary" then return BM.db.barHeight end
+    return SECTION_SIZES[section] or 20
+end
+
+-- Master layout: stacks sections bottom-to-top in reverse layoutOrder
 function BM.LayoutAll()
     if not BM.MainFrame then return end
-    EnsureContainers()
     local db = BM.db
     local w = db.barWidth
+    local order = db.layoutOrder or BM.SECTIONS
     local y = 0
 
-    -- Bottom: Utility
-    if HasVisibleIcons(VIEWERS.UTILITY) then
-        utilityContainer:ClearAllPoints()
-        utilityContainer:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
-        utilityContainer:SetSize(w, UTILITY_SIZE)
-        utilityContainer:Show()
-        y = y + UTILITY_SIZE
-    else
-        utilityContainer:Hide()
-    end
+    -- Stack from bottom: iterate order in reverse (last = bottom)
+    for i = #order, 1, -1 do
+        local section = order[i]
+        if SectionHasContent(section) then
+            local h = SectionHeight(section)
 
-    -- Resource bar
-    if BM.primaryBar then
-        BM.primaryBar:ClearAllPoints()
-        BM.primaryBar:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
-        BM.primaryBar:SetSize(w, db.barHeight)
-        y = y + db.barHeight
-    end
+            if section == "primary" and BM.primaryBar then
+                BM.primaryBar:ClearAllPoints()
+                BM.primaryBar:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
+                BM.primaryBar:SetSize(w, h)
+            elseif section == "secondary" and BM.secondaryContainer then
+                BM.secondaryContainer:ClearAllPoints()
+                BM.secondaryContainer:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
+                BM.secondaryContainer:SetSize(w, h)
+            else
+                local c = containers[section]
+                if c then
+                    c:ClearAllPoints()
+                    c:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
+                    c:SetSize(w, h)
+                    c:Show()
+                end
+            end
 
-    -- Combo pips
-    if BM.secondaryContainer then
-        BM.secondaryContainer:ClearAllPoints()
-        BM.secondaryContainer:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
-        BM.secondaryContainer:SetSize(w, 10)
-        y = y + 10
-    end
-
-    -- Buffs/procs
-    if HasVisibleIcons(VIEWERS.BUFF) then
-        buffContainer:ClearAllPoints()
-        buffContainer:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
-        buffContainer:SetSize(w, BUFF_SIZE)
-        buffContainer:Show()
-        y = y + BUFF_SIZE
-    else
-        buffContainer:Hide()
-    end
-
-    -- Top: Essential
-    if HasVisibleIcons(VIEWERS.ESSENTIAL) then
-        essentialContainer:ClearAllPoints()
-        essentialContainer:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
-        essentialContainer:SetSize(w, ESSENTIAL_SIZE)
-        essentialContainer:Show()
-        y = y + ESSENTIAL_SIZE
-    else
-        essentialContainer:Hide()
+            y = y + h
+        else
+            local c = containers[section]
+            if c then c:Hide() end
+            if section == "primary" and BM.primaryBar then BM.primaryBar:Hide() end
+            if section == "secondary" and BM.secondaryContainer then BM.secondaryContainer:Hide() end
+        end
     end
 
     if not db.locked then y = y + 14 end
@@ -199,11 +198,17 @@ local function RefreshViewerMirror(viewerName)
     local viewer = _G[viewerName]
     if not viewer or not viewer.itemFramePool then return end
 
-    EnsureContainers()
-    local container = ContainerForViewer(viewerName)
+    -- Find which section this viewer maps to
+    local section
+    for sec, vn in pairs(SECTION_VIEWER_MAP) do
+        if vn == viewerName then section = sec; break end
+    end
+    if not section then return end
+
+    local container = EnsureContainer(section)
     if not container then return end
 
-    local size = SizeForViewer(viewerName)
+    local size = SECTION_SIZES[section] or 24
     local isBuff = (viewerName == VIEWERS.BUFF)
 
     if not mirrorIcons[viewerName] then mirrorIcons[viewerName] = {} end
@@ -215,8 +220,14 @@ local function RefreshViewerMirror(viewerName)
         if ic.glowPulse then ic.glowPulse:Stop() end
     end
 
+    if not IsSectionEnabled(section) then
+        container:Hide()
+        BM.LayoutAll()
+        return
+    end
+
     local idx = 0
-    local spacing = (viewerName == VIEWERS.UTILITY) and 1 or 2
+    local spacing = (section == "utility") and 1 or 2
     local now = GetTime()
     local currentActiveBuffs = {}
 
@@ -242,12 +253,8 @@ local function RefreshViewerMirror(viewerName)
                     local active = IsFrameActive(frame)
                     if active then
                         ic.glow:Show()
-                        if not ic.glowPulse:IsPlaying() then
-                            ic.glowPulse:Play()
-                        end
+                        if not ic.glowPulse:IsPlaying() then ic.glowPulse:Play() end
                         ic.icon:SetDesaturated(false)
-
-                        -- New proc detection: play sound on first appearance
                         if not prevActiveBuffs[spellID] then
                             BM.PlayAlertSound("proc")
                         end
@@ -257,27 +264,19 @@ local function RefreshViewerMirror(viewerName)
                         ic.glowPulse:Stop()
                         ic.icon:SetDesaturated(true)
                     end
-
-                    -- Mirror remaining duration via cooldown spinner
                     if frame.Cooldown then
                         local cdStart, cdDuration = frame.Cooldown:GetCooldownTimes()
                         if cdStart and cdDuration then
-                            cdStart = cdStart / 1000
-                            cdDuration = cdDuration / 1000
-                            if cdDuration > 0 then
-                                ic.cd:SetCooldown(cdStart, cdDuration)
-                            else
-                                ic.cd:Clear()
-                            end
+                            cdStart = cdStart / 1000; cdDuration = cdDuration / 1000
+                            if cdDuration > 0 then ic.cd:SetCooldown(cdStart, cdDuration)
+                            else ic.cd:Clear() end
                         end
                     end
                 else
-                    -- Essential / Utility: show cooldown state
                     if frame.Cooldown then
                         local cdStart, cdDuration = frame.Cooldown:GetCooldownTimes()
                         if cdStart and cdDuration then
-                            cdStart = cdStart / 1000
-                            cdDuration = cdDuration / 1000
+                            cdStart = cdStart / 1000; cdDuration = cdDuration / 1000
                             if cdDuration > 1.5 then
                                 ic.cd:SetCooldown(cdStart, cdDuration)
                                 ic.icon:SetDesaturated(true)
@@ -294,10 +293,7 @@ local function RefreshViewerMirror(viewerName)
         end
     end
 
-    if isBuff then
-        prevActiveBuffs = currentActiveBuffs
-    end
-
+    if isBuff then prevActiveBuffs = currentActiveBuffs end
     container:Show()
     BM.LayoutAll()
 end
@@ -351,7 +347,6 @@ local function HookMixins()
             end
         end
     end
-
     hookedMixins.done = true
 end
 
@@ -362,18 +357,28 @@ refreshFrame:SetScript("OnUpdate", function(self, elapsed)
     if refreshTimer < 0.1 then return end
     refreshTimer = 0
     if not BM.MainFrame or not BM.MainFrame:IsShown() then return end
-
     for _, vName in ipairs(ALL_HOOKED) do
-        if _G[vName] then
-            RefreshViewerMirror(vName)
-        end
+        if _G[vName] then RefreshViewerMirror(vName) end
     end
 end)
 
-function BM.InitViewerHooks()
-    for _, vName in ipairs(ALL_HOOKED) do
-        HookViewer(vName)
+-- Swap two adjacent sections in layoutOrder
+function BM.SwapSectionOrder(sectionKey, direction)
+    local order = BM.db.layoutOrder
+    for i, key in ipairs(order) do
+        if key == sectionKey then
+            local target = i + direction
+            if target >= 1 and target <= #order then
+                order[i], order[target] = order[target], order[i]
+                BM.LayoutAll()
+            end
+            return
+        end
     end
+end
+
+function BM.InitViewerHooks()
+    for _, vName in ipairs(ALL_HOOKED) do HookViewer(vName) end
     HookMixins()
     BM.LayoutAll()
 end

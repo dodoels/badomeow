@@ -89,8 +89,6 @@ local function UpdatePrimary()
     if not primaryBar then return end
     local resData = BM.GetEffectiveResourceData()
     if not resData then return end
-    if not BM.db.showPrimaryBar then primaryBar:Hide(); return end
-    primaryBar:Show()
 
     local current = UnitPower("player", resData.powerType)
     local maximum = UnitPowerMax("player", resData.powerType)
@@ -110,8 +108,6 @@ local function UpdateSecondary()
     if not secondaryContainer then return end
     local resData = BM.GetEffectiveResourceData()
     if not resData or not resData.secondaryPower then return end
-    if not BM.db.showSecondaryBar then secondaryContainer:Hide(); return end
-    secondaryContainer:Show()
 
     local current = UnitPower("player", resData.secondaryPower)
     local maximum = resData.maxSecondary or MAX_PIPS
