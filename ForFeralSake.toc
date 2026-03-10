@@ -13,7 +13,9 @@
 Locales\zhCN.lua
 Locales\enUS.lua
 Constants.lua
+TextureRegistry.lua
 Core.lua
 ResourceBar.lua
+TextureOverlay.lua
 ViewerHook.lua
 Settings.lua

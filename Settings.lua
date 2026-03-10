@@ -15,7 +15,7 @@ local function CreateOptionsPanel()
     scrollFrame:SetPoint("BOTTOMRIGHT", -36, 16)
 
     local content = CreateFrame("Frame", nil, scrollFrame)
-    content:SetSize(560, 1200)
+    content:SetSize(560, 2800)
     scrollFrame:SetScrollChild(content)
 
     local yOff = -10
@@ -305,6 +305,159 @@ local function CreateOptionsPanel()
     InfoText("蓝条 (Mana) — 变身时显示在主资源下方")
     Slider("蓝条宽度", "manaBarWidth", 60, 500, 5)
     Slider("蓝条高度", "manaBarHeight", 4, 30, 1)
+
+    Spacer(8)
+    InfoText("资源条材质 — 更改资源条的填充纹理")
+
+    local function TextureDropdown(labelText, dbKey, texList)
+        local y = NextY(34)
+        local lbl = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        lbl:SetPoint("TOPLEFT", content, "TOPLEFT", 10, y)
+        lbl:SetText(labelText)
+
+        local btn = CreateFrame("Button", "ffsTexDrop_" .. dbKey, content, "UIPanelButtonTemplate")
+        btn:SetPoint("TOPLEFT", content, "TOPLEFT", 200, y)
+        btn:SetSize(200, 22)
+
+        local function UpdateLabel()
+            local id = FFS.db[dbKey] or "default"
+            for _, t in ipairs(texList) do
+                if t.id == id then btn:SetText(t.name); return end
+            end
+            btn:SetText(id)
+        end
+        UpdateLabel()
+
+        btn:SetScript("OnClick", function(self)
+            local menu = {}
+            for _, t in ipairs(texList) do
+                menu[#menu + 1] = {
+                    text = t.name,
+                    checked = (FFS.db[dbKey] == t.id),
+                    func = function()
+                        FFS.db[dbKey] = t.id
+                        UpdateLabel()
+                        FFS.RefreshAll()
+                    end,
+                }
+            end
+            local dropdown = CreateFrame("Frame", "ffsTexMenu_" .. dbKey, UIParent, "UIDropDownMenuTemplate")
+            EasyMenu(menu, dropdown, self, 0, 0, "MENU")
+        end)
+    end
+
+    TextureDropdown("资源条填充", "barTexture", FFS.BarTextureList or {})
+    TextureDropdown("资源条背景", "barBgTexture", FFS.BarTextureList or {})
+    TextureDropdown("蓝条填充", "manaBarTexture", FFS.BarTextureList or {})
+    TextureDropdown("蓝条背景", "manaBgTexture", FFS.BarTextureList or {})
+
+    Divider()
+
+    ---------------------------------------------------------------------------
+    -- Texture Overlays
+    ---------------------------------------------------------------------------
+    Header("贴图面板 / Texture Overlays")
+    InfoText("在屏幕上放置自定义贴图面板作为背景或装饰。")
+    InfoText("将 .tga 或 .blp 文件放入 Interface\\AddOns\\ForFeralSake\\Textures\\")
+    InfoText("然后在下方注册并配置。解锁后可拖动贴图面板。")
+
+    for i = 1, (FFS.MAX_OVERLAYS or 5) do
+        Spacer(4)
+        local overlayLabel = "贴图 #" .. i
+        do
+            local idx = i
+            local y = NextY(28)
+            local cb = CreateFrame("CheckButton", "ffsCB_overlay" .. idx, content, "UICheckButtonTemplate")
+            cb:SetPoint("TOPLEFT", content, "TOPLEFT", 10, y)
+            cb:SetSize(26, 26)
+            local text = cb:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+            text:SetPoint("LEFT", cb, "RIGHT", 4, 0)
+            text:SetText(overlayLabel)
+
+            local function GetCfg()
+                if not FFS.db.overlays then FFS.db.overlays = {} end
+                if not FFS.db.overlays[idx] then FFS.db.overlays[idx] = { enabled = false } end
+                return FFS.db.overlays[idx]
+            end
+
+            cb:SetChecked(GetCfg().enabled or false)
+            cb:SetScript("OnClick", function(self)
+                GetCfg().enabled = self:GetChecked() and true or false
+                FFS.RefreshOverlays()
+            end)
+
+            -- Path input
+            local yPath = NextY(28)
+            local pathLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            pathLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 40, yPath)
+            pathLabel:SetText("路径:")
+
+            local pathBox = CreateFrame("EditBox", "ffsOverlayPath" .. idx, content, "InputBoxTemplate")
+            pathBox:SetPoint("TOPLEFT", content, "TOPLEFT", 80, yPath + 2)
+            pathBox:SetSize(330, 20)
+            pathBox:SetAutoFocus(false)
+            pathBox:SetText(GetCfg().texturePath or "")
+            pathBox:SetScript("OnEnterPressed", function(self)
+                GetCfg().texturePath = self:GetText()
+                self:ClearFocus()
+                FFS.RefreshOverlays()
+            end)
+            pathBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+
+            -- Size sliders (compact inline)
+            local ySize = NextY(30)
+            local wLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            wLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 40, ySize)
+            wLabel:SetText("宽:")
+
+            local wBox = CreateFrame("EditBox", "ffsOvW" .. idx, content, "InputBoxTemplate")
+            wBox:SetPoint("TOPLEFT", content, "TOPLEFT", 60, ySize + 2)
+            wBox:SetSize(50, 18)
+            wBox:SetAutoFocus(false)
+            wBox:SetText(tostring(GetCfg().width or 300))
+            wBox:SetScript("OnEnterPressed", function(self)
+                GetCfg().width = tonumber(self:GetText()) or 300
+                self:ClearFocus()
+                FFS.RefreshOverlays()
+            end)
+            wBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+
+            local hLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            hLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 120, ySize)
+            hLabel:SetText("高:")
+
+            local hBox = CreateFrame("EditBox", "ffsOvH" .. idx, content, "InputBoxTemplate")
+            hBox:SetPoint("TOPLEFT", content, "TOPLEFT", 140, ySize + 2)
+            hBox:SetSize(50, 18)
+            hBox:SetAutoFocus(false)
+            hBox:SetText(tostring(GetCfg().height or 50))
+            hBox:SetScript("OnEnterPressed", function(self)
+                GetCfg().height = tonumber(self:GetText()) or 50
+                self:ClearFocus()
+                FFS.RefreshOverlays()
+            end)
+            hBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+
+            local aLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            aLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 200, ySize)
+            aLabel:SetText("透明度:")
+
+            local aBox = CreateFrame("EditBox", "ffsOvA" .. idx, content, "InputBoxTemplate")
+            aBox:SetPoint("TOPLEFT", content, "TOPLEFT", 250, ySize + 2)
+            aBox:SetSize(50, 18)
+            aBox:SetAutoFocus(false)
+            aBox:SetText(tostring(GetCfg().alpha or 0.8))
+            aBox:SetScript("OnEnterPressed", function(self)
+                GetCfg().alpha = tonumber(self:GetText()) or 0.8
+                self:ClearFocus()
+                FFS.RefreshOverlays()
+            end)
+            aBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+        end
+    end
+
+    InfoText("路径格式: Interface\\AddOns\\ForFeralSake\\Textures\\your_image.tga")
+    InfoText("也可以输入游戏内置路径如 Interface\\Tooltips\\UI-Tooltip-Background")
 
     Divider()
 

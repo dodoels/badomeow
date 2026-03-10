@@ -14,6 +14,13 @@ local function GetParent(section)
     return UIParent
 end
 
+local function ResolveBarTexture(dbKey)
+    local id = FFS.db[dbKey] or "default"
+    local entry = FFS.GetBarTexturePath and FFS.GetBarTexturePath(id)
+    if entry and entry.path ~= "" then return entry.path end
+    return "Interface\\TargetingFrame\\UI-StatusBar"
+end
+
 ---------------------------------------------------------------------------
 -- Safe check for text display only (following Ayije_CDM pattern)
 ---------------------------------------------------------------------------
@@ -61,8 +68,11 @@ local function CreatePrimaryBar(resData)
 
     parent:SetSize(db.barWidth, db.barHeight)
 
+    local barTex = ResolveBarTexture("barTexture")
+    local bgTex = ResolveBarTexture("barBgTexture")
+
     primaryBar = CreateFrame("StatusBar", "ffsPrimaryBar", parent)
-    primaryBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    primaryBar:SetStatusBarTexture(barTex)
     primaryBar:SetSize(db.barWidth, db.barHeight)
     primaryBar:SetPoint("CENTER", parent, "CENTER", 0, 0)
 
@@ -74,13 +84,12 @@ local function CreatePrimaryBar(resData)
     else barColor = { 1.0, 0.85, 0.0 } end
     primaryBar:SetStatusBarColor(barColor[1], barColor[2], barColor[3])
 
-    -- SetMinMaxValues / SetValue handle secret values natively
     primaryBar:SetMinMaxValues(0, UnitPowerMax("player", resData.powerType))
     primaryBar:SetValue(UnitPower("player", resData.powerType))
 
     primaryBg = primaryBar:CreateTexture(nil, "BACKGROUND")
     primaryBg:SetAllPoints()
-    primaryBg:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    primaryBg:SetTexture(bgTex)
     primaryBg:SetVertexColor(0.08, 0.08, 0.08, 0.6)
 
     primaryText = primaryBar:CreateFontString(nil, "OVERLAY")
@@ -144,8 +153,11 @@ local function CreateManaBar()
 
     parent:SetSize(mW, mH)
 
+    local mBarTex = ResolveBarTexture("manaBarTexture")
+    local mBgTex = ResolveBarTexture("manaBgTexture")
+
     manaBar = CreateFrame("StatusBar", "ffsManaBar", parent)
-    manaBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    manaBar:SetStatusBarTexture(mBarTex)
     manaBar:SetSize(mW, mH)
     manaBar:SetPoint("CENTER", parent, "CENTER", 0, 0)
     manaBar:SetStatusBarColor(0.2, 0.4, 1.0)
@@ -155,7 +167,7 @@ local function CreateManaBar()
 
     manaBg = manaBar:CreateTexture(nil, "BACKGROUND")
     manaBg:SetAllPoints()
-    manaBg:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    manaBg:SetTexture(mBgTex)
     manaBg:SetVertexColor(0.08, 0.08, 0.08, 0.6)
 
     manaText = manaBar:CreateFontString(nil, "OVERLAY")

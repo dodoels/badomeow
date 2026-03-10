@@ -84,4 +84,10 @@ FFS.DefaultDB = {
     pos_primary     = { x = 0,   y = -255 },
     pos_secondary   = { x = 0,   y = -240 },
     pos_mana        = { x = 0,   y = -270 },
+    barTexture      = "default",
+    barBgTexture    = "default",
+    manaBarTexture  = "default",
+    manaBgTexture   = "default",
+    overlays        = {},
+    customTextures  = {},
 }

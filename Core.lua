@@ -123,6 +123,7 @@ end
 function FFS.RefreshAll()
     if FFS.RefreshSectionScales then FFS.RefreshSectionScales() end
     if FFS.RebuildResourceBars then FFS.RebuildResourceBars() end
+    if FFS.RefreshOverlays then FFS.RefreshOverlays() end
     FFS.UpdateVisibility()
 end
 
@@ -163,7 +164,9 @@ EventFrame:SetScript("OnEvent", function(self, event, arg1)
         isDruid = IsDruid()
         if not isDruid then return end
         currentSpecID = DetectSpec()
+        if FFS.InitTextureRegistry then FFS.InitTextureRegistry() end
         if FFS.InitResourceBars then FFS.InitResourceBars() end
+        if FFS.InitOverlays then FFS.InitOverlays() end
         RetryViewerHooks(1)
         if FFS.InitSettings then FFS.InitSettings() end
         FFS.UpdateVisibility()
