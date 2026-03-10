@@ -1,10 +1,10 @@
 ## Interface: 120000, 120001
 ## Title: badomeow
 ## Title-zhCN: 财高·森境云庭·麓悦夜林·豹集
-## Notes: All-spec Druid combat monitor with custom backgrounds, proc alerts, and sound effects for WoW 12.0 Midnight
-## Notes-zhCN: 德鲁伊全专精战斗监控 - 支持自定义背景图片、技能触发提示、音效播放、自动专精切换
+## Notes: Druid combat monitor - hooks Blizzard's CooldownViewer for automatic spell tracking
+## Notes-zhCN: 德鲁伊战斗监控 - 自动同步官方冷却监控系统、资源条、自定义样式
 ## Author: badomeow team
-## Version: 1.0.0
+## Version: 2.0.0
 ## License: MIT
 ## SavedVariables: badomeowDB
 ## IconTexture: Interface\Icons\Ability_Druid_CatForm
@@ -14,5 +14,5 @@ Locales\enUS.lua
 Constants.lua
 Core.lua
 ResourceBar.lua
-Display.lua
+ViewerHook.lua
 Settings.lua
