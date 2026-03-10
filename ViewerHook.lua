@@ -61,21 +61,22 @@ local function GetSpellIDFromFrame(frame)
         if ok and info then id = info.overrideSpellID or info.spellID end
     end
     -- safety: reject secret values
-    if id and type(id) == "number" then
-        local ok, safe = pcall(function() return not issecretvalue(id) end)
-        if ok and not safe then return nil end
+    if id then
+        local ok, _ = pcall(tostring, id)
+        if not ok then return nil end
     end
     return id
 end
 
 local function IsFrameActive(frame)
     if not frame then return false end
-    if frame.IsActive then
-        local ok, r = pcall(frame.IsActive, frame)
-        if ok then return r end
-    end
-    if frame.activeState ~= nil then return frame.activeState end
-    return frame:IsShown()
+    local ok, r = pcall(function()
+        if frame.IsActive then return frame.IsActive(frame) end
+        if frame.activeState ~= nil then return frame.activeState end
+        return frame:IsShown()
+    end)
+    if ok then return r end
+    return false
 end
 
 ---------------------------------------------------------------------------
@@ -263,30 +264,30 @@ local function RefreshSection(section)
         if not ic then break end  -- combat, can't create more
         ic:SetSize(size, size)
 
-        local tex = C_Spell.GetSpellTexture(src.id)
-        if tex then ic.icon:SetTexture(tex) end
+        local okTex, tex = pcall(C_Spell.GetSpellTexture, src.id)
+        if okTex and tex then ic.icon:SetTexture(tex) end
 
         ic:ClearAllPoints()
         ic:SetPoint("LEFT", container, "LEFT", (idx-1) * (size + spacing), 0)
 
-        -- cooldown mirror
-        local srcCD = src.f.Cooldown
-        if srcCD then
-            local s, d = srcCD:GetCooldownTimes()
-            if s and d then
-                s = s / 1000; d = d / 1000
-                if isBuff then
-                    if d > 0 then ic.cd:SetCooldown(s, d) else ic.cd:Clear() end
+        -- cooldown mirror via C_Spell API (GetCooldownTimes returns secret values in 12.0)
+        local okCD, cdInfo = pcall(C_Spell.GetSpellCooldown, src.id)
+        if not okCD then cdInfo = nil end
+        if cdInfo and cdInfo.duration and cdInfo.duration > 0 then
+            if isBuff then
+                ic.cd:SetCooldown(cdInfo.startTime, cdInfo.duration)
+            else
+                if cdInfo.duration > 1.5 then
+                    ic.cd:SetCooldown(cdInfo.startTime, cdInfo.duration)
+                    ic.icon:SetDesaturated(true)
                 else
-                    if d > 1.5 then
-                        ic.cd:SetCooldown(s, d)
-                        ic.icon:SetDesaturated(true)
-                    else
-                        ic.cd:Clear()
-                        ic.icon:SetDesaturated(false)
-                    end
+                    ic.cd:Clear()
+                    ic.icon:SetDesaturated(false)
                 end
             end
+        else
+            ic.cd:Clear()
+            if not isBuff then ic.icon:SetDesaturated(false) end
         end
 
         -- buff glow
