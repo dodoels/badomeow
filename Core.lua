@@ -215,6 +215,23 @@ local function InitDB()
     BM.db = badomeowDB
 end
 
+-- Retry hooking viewers until all exist (Blizzard creates them lazily)
+local MAX_HOOK_RETRIES = 20
+local function RetryViewerHooks(attempt)
+    if not BM.InitViewerHooks then return end
+    attempt = attempt or 1
+    BM.InitViewerHooks()
+
+    local allFound = true
+    for _, vName in pairs(BM.VIEWERS) do
+        if not _G[vName] then allFound = false; break end
+    end
+
+    if not allFound and attempt < MAX_HOOK_RETRIES then
+        C_Timer.After(0.2, function() RetryViewerHooks(attempt + 1) end)
+    end
+end
+
 -- Events
 local EventFrame = CreateFrame("Frame")
 EventFrame:RegisterEvent("ADDON_LOADED")
@@ -223,6 +240,7 @@ EventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 EventFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
 EventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
 EventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORMS")
+EventFrame:RegisterEvent("LOADING_SCREEN_DISABLED")
 
 EventFrame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == addonName then
@@ -235,7 +253,7 @@ EventFrame:SetScript("OnEvent", function(self, event, arg1)
         currentSpecID = DetectSpec()
 
         if BM.InitResourceBars then BM.InitResourceBars() end
-        if BM.InitViewerHooks then BM.InitViewerHooks() end
+        RetryViewerHooks(1)
         if BM.InitSettings then BM.InitSettings() end
 
         BM.UpdateVisibility()
@@ -246,11 +264,11 @@ EventFrame:SetScript("OnEvent", function(self, event, arg1)
         OnSpecChanged()
         lastFormID = -1
         BM.OnFormChanged()
-        -- Re-hook viewers after loading screen (they may not exist at ADDON_LOADED)
-        if BM.InitViewerHooks then
-            C_Timer.After(0.5, function() BM.InitViewerHooks() end)
-            C_Timer.After(2.0, function() BM.InitViewerHooks() end)
-        end
+        RetryViewerHooks(1)
+
+    elseif event == "LOADING_SCREEN_DISABLED" then
+        if not isDruid then return end
+        RetryViewerHooks(1)
 
     elseif event == "PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then
         if isDruid then OnSpecChanged() end
@@ -286,6 +304,24 @@ SlashCmdList["BADOMEOW"] = function(msg)
         MainFrame:ClearAllPoints()
         MainFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -200)
         print("|cFF00FF00badomeow:|r " .. (L and L["RESET_POSITION"] or "Reset"))
+    elseif msg == "debug" then
+        print("|cFF00FF00badomeow debug:|r --- Viewer Status ---")
+        for key, vName in pairs(BM.VIEWERS) do
+            local viewer = _G[vName]
+            if viewer then
+                local count = 0
+                if viewer.itemFramePool then
+                    for frame in viewer.itemFramePool:EnumerateActive() do
+                        if frame:IsShown() then count = count + 1 end
+                    end
+                end
+                print("  " .. key .. " (" .. vName .. "): |cFF00FF00EXISTS|r, active frames: " .. count)
+            else
+                print("  " .. key .. " (" .. vName .. "): |cFFFF5555NOT FOUND|r")
+            end
+        end
+        print("|cFF00FF00badomeow debug:|r MainFrame shown: " .. tostring(MainFrame and MainFrame:IsShown()))
+        print("|cFF00FF00badomeow debug:|r specID: " .. tostring(currentSpecID) .. ", locked: " .. tostring(BM.db.locked))
     else
         if BM.OpenSettings then BM.OpenSettings()
         else print("|cFF00FF00badomeow:|r /bdm lock | unlock | reset") end
