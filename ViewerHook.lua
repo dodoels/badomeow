@@ -53,24 +53,23 @@ local function ResolveIconTexture(frame)
     return nil
 end
 
-local BLIZZARD_OVERLAY_ATLAS = "UI-HUD-CoolDownManager-IconOverlay"
-local BLIZZARD_OVERLAY_FILEID = 6707800
-
-local function FindBlizzardOverlay(frame)
-    local function CheckRegions(parent)
-        if not parent or not parent.GetRegions then return nil end
+local function StripAllBlizzardDecor(frame, iconTex)
+    local function NukeDecorations(parent)
+        if not parent or not parent.GetRegions then return end
         for _, region in pairs({ parent:GetRegions() }) do
-            if region and region.IsObjectType and region:IsObjectType("Texture") then
-                local atlas = region.GetAtlas and region:GetAtlas()
-                local tex = region.GetTexture and region:GetTexture()
-                if atlas == BLIZZARD_OVERLAY_ATLAS or tex == BLIZZARD_OVERLAY_FILEID then
-                    return region
-                end
+            if region and region ~= iconTex
+                and region.IsObjectType and region:IsObjectType("Texture")
+                and region ~= (frame.Cooldown) then
+                region:SetTexture(nil)
+                region:SetAlpha(0)
+                region:Hide()
             end
         end
-        return nil
     end
-    return CheckRegions(frame) or CheckRegions(frame.Icon)
+    NukeDecorations(frame)
+    if frame.Icon and frame.Icon ~= iconTex and frame.Icon.GetRegions then
+        NukeDecorations(frame.Icon)
+    end
 end
 
 local function MasqueSkinFrame(frame, section)
@@ -84,19 +83,13 @@ local function MasqueSkinFrame(frame, section)
     if not iconTex then return end
 
     masqueRegistered[frame] = true
-
-    local blizzOverlay = FindBlizzardOverlay(frame)
-    if blizzOverlay then
-        blizzOverlay:SetTexture(nil)
-        blizzOverlay:SetAtlas("")
-        blizzOverlay:SetAlpha(0)
-    end
+    StripAllBlizzardDecor(frame, iconTex)
 
     local regions = {
         Icon = iconTex,
         Cooldown = frame.Cooldown or false,
-        Normal = blizzOverlay or frame.NormalTexture or false,
-        Border = frame.Border or false,
+        Normal = false,
+        Border = false,
         Count = frame.Count or false,
     }
     group:AddButton(frame, regions, "Aura")
