@@ -1,7 +1,7 @@
 local addonName, BM = ...
 
 BM.ADDON_NAME = addonName
-BM.VERSION = "2.1.0"
+BM.VERSION = "3.0.0"
 
 BM.DRUID_CLASS_ID = 11
 
@@ -81,7 +81,7 @@ BM.DefaultDB = {
     showUtility     = true,
     showPrimaryBar  = true,
     showSecondaryBar = true,
-    playProcSound   = true,
+    playProcSound   = false,
     playCdSound     = false,
     scale           = 1.0,
     mainFrameX      = 0,

@@ -94,12 +94,7 @@ local function ShouldShow()
     return true
 end
 
--- Safe wrappers: never call SetMovable/EnableMouse in combat
-local function SafeSetMovable(frame, movable)
-    if InCombatLockdown() then return end
-    frame:SetMovable(movable)
-    frame:EnableMouse(movable)
-end
+function BM.PlayAlertSound() end
 
 function BM.UpdateVisibility()
     if not MainFrame then return end
@@ -123,7 +118,10 @@ function BM.UpdateVisibility()
         end
     end
 
-    SafeSetMovable(MainFrame, not BM.db.locked)
+    if not InCombatLockdown() then
+        MainFrame:SetMovable(not BM.db.locked)
+        MainFrame:EnableMouse(not BM.db.locked)
+    end
     if BM.LayoutAll then BM.LayoutAll() end
 end
 
@@ -153,21 +151,21 @@ local function SetupMainFrame()
     BM.MainFrame = MainFrame
 
     local db = BM.db
-    MainFrame:SetSize(db.barWidth, 60)
+    MainFrame:SetSize(db.barWidth, 100)
     MainFrame:SetPoint("CENTER", UIParent, "CENTER", db.mainFrameX, db.mainFrameY)
     MainFrame:SetScale(db.scale)
     MainFrame:SetFrameStrata("MEDIUM")
     MainFrame:SetFrameLevel(10)
     MainFrame:SetClampedToScreen(true)
+    MainFrame:SetMovable(not db.locked)
+    MainFrame:EnableMouse(not db.locked)
+    MainFrame:RegisterForDrag("LeftButton")
 
     MainFrame.title = MainFrame:CreateFontString(nil, "OVERLAY")
     MainFrame.title:SetFont("Fonts\\FRIZQT__.TTF", 8, "OUTLINE")
     MainFrame.title:SetPoint("TOP", MainFrame, "TOP", 0, 10)
     MainFrame.title:SetTextColor(0.6, 0.8, 0.4, 0.5)
     MainFrame.title:Hide()
-
-    SafeSetMovable(MainFrame, not db.locked)
-    MainFrame:RegisterForDrag("LeftButton")
 
     MainFrame:SetScript("OnDragStart", function(self)
         if not BM.db.locked and not InCombatLockdown() then self:StartMoving() end
@@ -181,8 +179,9 @@ local function SetupMainFrame()
     MainFrame:SetScript("OnMouseUp", function(self, button)
         if button == "RightButton" and not InCombatLockdown() then
             BM.db.locked = not BM.db.locked
-            SafeSetMovable(self, not BM.db.locked)
-            local msg = BM.db.locked and (L and L["LOCK_FRAME"] or "Locked") or (L and L["UNLOCK_FRAME"] or "Unlocked")
+            self:SetMovable(not BM.db.locked)
+            self:EnableMouse(not BM.db.locked)
+            local msg = BM.db.locked and "已锁定" or "已解锁"
             print("|cFF00FF00badomeow:|r " .. msg)
             BM.UpdateVisibility()
         end
@@ -191,14 +190,14 @@ local function SetupMainFrame()
     MainFrame:Hide()
 end
 
--- Sound disabled
-function BM.PlayAlertSound() end
-
 function BM.RefreshAll()
     if not MainFrame then return end
     local db = BM.db
     MainFrame:SetScale(db.scale)
-    SafeSetMovable(MainFrame, not db.locked)
+    if not InCombatLockdown() then
+        MainFrame:SetMovable(not db.locked)
+        MainFrame:EnableMouse(not db.locked)
+    end
     if BM.RebuildResourceBars then BM.RebuildResourceBars() end
     BM.UpdateVisibility()
 end
@@ -209,7 +208,7 @@ local function InitDB()
     BM.db = badomeowDB
 end
 
-local MAX_HOOK_RETRIES = 20
+local MAX_HOOK_RETRIES = 30
 local function RetryViewerHooks(attempt)
     if not BM.InitViewerHooks then return end
     attempt = attempt or 1
@@ -221,11 +220,10 @@ local function RetryViewerHooks(attempt)
     end
 
     if not allFound and attempt < MAX_HOOK_RETRIES then
-        C_Timer.After(0.2, function() RetryViewerHooks(attempt + 1) end)
+        C_Timer.After(0.3, function() RetryViewerHooks(attempt + 1) end)
     end
 end
 
--- Events
 local EventFrame = CreateFrame("Frame")
 EventFrame:RegisterEvent("ADDON_LOADED")
 EventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -251,7 +249,7 @@ EventFrame:SetScript("OnEvent", function(self, event, arg1)
         if BM.InitSettings then BM.InitSettings() end
 
         BM.UpdateVisibility()
-        print("|cFF00FF00" .. (L and L["ADDON_LOADED"] or "badomeow loaded") .. "|r")
+        print("|cFF00FF00badomeow:|r 已加载 v" .. BM.VERSION)
 
     elseif event == "PLAYER_ENTERING_WORLD" then
         if not isDruid then return end
@@ -266,7 +264,8 @@ EventFrame:SetScript("OnEvent", function(self, event, arg1)
 
     elseif event == "PLAYER_REGEN_ENABLED" then
         if not isDruid or not MainFrame then return end
-        SafeSetMovable(MainFrame, not BM.db.locked)
+        MainFrame:SetMovable(not BM.db.locked)
+        MainFrame:EnableMouse(not BM.db.locked)
 
     elseif event == "PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then
         if isDruid then OnSpecChanged() end
@@ -276,32 +275,32 @@ EventFrame:SetScript("OnEvent", function(self, event, arg1)
     end
 end)
 
--- Slash commands
 SlashCmdList["BADOMEOW"] = function(msg)
     if not isDruid then
         print("|cFFFF5555badomeow:|r 此插件仅适用于德鲁伊职业")
         return
     end
     if not MainFrame then
-        print("|cFFFF5555badomeow:|r 插件尚未初始化，请 /reload")
+        print("|cFFFF5555badomeow:|r 插件尚未初始化")
         return
     end
     msg = strtrim(msg or ""):lower()
     if msg == "lock" then
         BM.db.locked = true
-        SafeSetMovable(MainFrame, false)
-        print("|cFF00FF00badomeow:|r " .. (L and L["LOCK_FRAME"] or "Locked"))
+        if not InCombatLockdown() then MainFrame:SetMovable(false); MainFrame:EnableMouse(false) end
+        print("|cFF00FF00badomeow:|r 已锁定")
         BM.UpdateVisibility()
     elseif msg == "unlock" then
+        if InCombatLockdown() then print("|cFFFF5555badomeow:|r 战斗中无法解锁"); return end
         BM.db.locked = false
-        SafeSetMovable(MainFrame, true)
-        print("|cFF00FF00badomeow:|r " .. (L and L["UNLOCK_FRAME"] or "Unlocked"))
+        MainFrame:SetMovable(true); MainFrame:EnableMouse(true)
+        print("|cFF00FF00badomeow:|r 已解锁")
         BM.UpdateVisibility()
     elseif msg == "reset" then
         BM.db.mainFrameX = 0; BM.db.mainFrameY = -200
         MainFrame:ClearAllPoints()
         MainFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -200)
-        print("|cFF00FF00badomeow:|r " .. (L and L["RESET_POSITION"] or "Reset"))
+        print("|cFF00FF00badomeow:|r 位置已重置")
     elseif msg == "debug" then
         print("|cFF00FF00badomeow debug:|r --- Viewer Status ---")
         for key, vName in pairs(BM.VIEWERS) do
@@ -313,9 +312,9 @@ SlashCmdList["BADOMEOW"] = function(msg)
                         if frame:IsShown() then count = count + 1 end
                     end
                 end
-                print("  " .. key .. " (" .. vName .. "): |cFF00FF00EXISTS|r, active=" .. count)
+                print("  " .. key .. " (" .. vName .. "): |cFF00FF00存在|r, 激活=" .. count)
             else
-                print("  " .. key .. " (" .. vName .. "): |cFFFF5555NOT FOUND|r")
+                print("  " .. key .. " (" .. vName .. "): |cFFFF5555未找到|r")
             end
         end
         print("|cFF00FF00badomeow debug:|r shown=" .. tostring(MainFrame:IsShown()) .. " spec=" .. currentSpecID .. " combat=" .. tostring(InCombatLockdown()))

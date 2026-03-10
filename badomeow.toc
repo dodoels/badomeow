@@ -4,10 +4,9 @@
 ## Notes: Druid combat monitor - hooks Blizzard's CooldownViewer for automatic spell tracking
 ## Notes-zhCN: 德鲁伊战斗监控 - 自动同步官方冷却监控系统、资源条、自定义样式
 ## Author: badomeow team
-## Version: 2.1.0
+## Version: 3.0.0
 ## License: MIT
 ## SavedVariables: badomeowDB
-## OptionalDeps: Masque
 ## IconTexture: Interface\Icons\Ability_Druid_CatForm
 
 Locales\zhCN.lua

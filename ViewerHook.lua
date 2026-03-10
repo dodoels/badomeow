@@ -1,102 +1,90 @@
 local addonName, BM = ...
 
+--[[
+    Mirrors Blizzard CooldownViewer icons into badomeow layout.
+    All frames are plain Frame (never Button) to avoid combat taint.
+    No sounds. No Masque. Pure display mirroring.
+]]
+
 local VIEWERS = BM.VIEWERS
 
-local hookedViewers = {}
-local hookedMixins = {}
-local prevActiveBuffs = {}
-
-local containers = {}
+-- Per-section data
+local sectionIcons = {}
+local containers  = {}
 
 local SECTION_SIZES = {
     buff      = 26,
     essential = 30,
     utility   = 22,
     secondary = 10,
-    primary   = nil,
 }
 
 local ICON_PAD = 1
-
-local BUFF_VIEWERS = { VIEWERS.BUFF, VIEWERS.BUFF_BAR }
-local SECTION_VIEWERS = {
-    buff      = BUFF_VIEWERS,
-    essential = { VIEWERS.ESSENTIAL },
-    utility   = { VIEWERS.UTILITY },
-}
-
-local ALL_VIEWER_NAMES = { VIEWERS.ESSENTIAL, VIEWERS.UTILITY, VIEWERS.BUFF, VIEWERS.BUFF_BAR }
-
-local VIEWER_TO_SECTION = {}
-for section, viewers in pairs(SECTION_VIEWERS) do
-    for _, vn in ipairs(viewers) do
-        VIEWER_TO_SECTION[vn] = section
-    end
-end
-
-local sectionIcons = {}
-
-local MSQ = LibStub and LibStub("Masque", true) or nil
-local masqueGroups = {}
 local iconCounter = 0
 
-local function GetMasqueGroup(section)
-    if not MSQ then return nil end
-    if masqueGroups[section] then return masqueGroups[section] end
-    local groupNames = {
-        essential = "核心技能 Essential",
-        buff      = "增益/触发 Buff",
-        utility   = "工具技能 Utility",
-    }
-    local name = groupNames[section]
-    if not name then return nil end
-    masqueGroups[section] = MSQ:Group("badomeow", name)
-    return masqueGroups[section]
+-- Which blizzard viewers map to which section
+local SECTION_TO_VIEWERS = {
+    essential = { VIEWERS.ESSENTIAL },
+    utility   = { VIEWERS.UTILITY },
+    buff      = { VIEWERS.BUFF, VIEWERS.BUFF_BAR },
+}
+
+local VIEWER_TO_SECTION = {}
+for sec, list in pairs(SECTION_TO_VIEWERS) do
+    for _, v in ipairs(list) do VIEWER_TO_SECTION[v] = sec end
 end
 
+local ALL_SECTIONS = { "essential", "buff", "utility" }
+local ALL_VIEWER_NAMES = {}
+for _, list in pairs(SECTION_TO_VIEWERS) do
+    for _, v in ipairs(list) do ALL_VIEWER_NAMES[#ALL_VIEWER_NAMES+1] = v end
+end
+
+---------------------------------------------------------------------------
+-- Helpers
+---------------------------------------------------------------------------
 local function GetSpellIDFromFrame(frame)
     if not frame then return nil end
-    local spellID
-    if frame.GetSpellID and type(frame.GetSpellID) == "function" then
-        local ok, result = pcall(frame.GetSpellID, frame)
-        if ok and result then spellID = result end
+    local id
+    -- method 1: GetSpellID()
+    if frame.GetSpellID then
+        local ok, r = pcall(frame.GetSpellID, frame)
+        if ok and r then id = r end
     end
-    if not spellID and frame.cooldownInfo then
-        local info = frame.cooldownInfo
-        spellID = info.overrideSpellID or info.spellID
+    -- method 2: .cooldownInfo table
+    if not id and frame.cooldownInfo then
+        id = frame.cooldownInfo.overrideSpellID or frame.cooldownInfo.spellID
     end
-    if not spellID then
-        local ok2, info2 = pcall(function()
-            return frame.GetCooldownInfo and frame:GetCooldownInfo()
-        end)
-        if ok2 and info2 then
-            spellID = info2.overrideSpellID or info2.spellID
-        end
+    -- method 3: GetCooldownInfo()
+    if not id and frame.GetCooldownInfo then
+        local ok, info = pcall(frame.GetCooldownInfo, frame)
+        if ok and info then id = info.overrideSpellID or info.spellID end
     end
-    if spellID and type(spellID) == "number" then
-        local ok, isSafe = pcall(function() return not issecretvalue(spellID) end)
-        if ok and not isSafe then return nil end
+    -- safety: reject secret values
+    if id and type(id) == "number" then
+        local ok, safe = pcall(function() return not issecretvalue(id) end)
+        if ok and not safe then return nil end
     end
-    return spellID
+    return id
 end
 
 local function IsFrameActive(frame)
     if not frame then return false end
-    if frame.IsActive and type(frame.IsActive) == "function" then
-        local ok, result = pcall(frame.IsActive, frame)
-        if ok then return result end
+    if frame.IsActive then
+        local ok, r = pcall(frame.IsActive, frame)
+        if ok then return r end
     end
     if frame.activeState ~= nil then return frame.activeState end
     return frame:IsShown()
 end
 
--- Use plain Frame (not Button) to avoid combat taint and unwanted click sounds.
--- Masque still works via explicit ButtonData regions.
-local function CreateMirrorIcon(parent, size, section)
+---------------------------------------------------------------------------
+-- Icon creation (plain Frame, pre-allocated)
+---------------------------------------------------------------------------
+local function CreateIcon(parent, size)
     iconCounter = iconCounter + 1
-    local fName = "badomeowIcon" .. iconCounter
-
-    local f = CreateFrame("Frame", fName, parent)
+    local name = "badomeowIC" .. iconCounter
+    local f = CreateFrame("Frame", name, parent)
     f:SetSize(size, size)
     f:SetFrameLevel(parent:GetFrameLevel() + 2)
 
@@ -105,44 +93,24 @@ local function CreateMirrorIcon(parent, size, section)
     f.icon:SetPoint("BOTTOMRIGHT", -ICON_PAD, ICON_PAD)
     f.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
-    f.cooldown = CreateFrame("Cooldown", fName .. "Cooldown", f, "CooldownFrameTemplate")
-    f.cooldown:SetAllPoints(f.icon)
-    f.cooldown:SetDrawEdge(true)
-    f.cooldown:SetHideCountdownNumbers(false)
-    if f.cooldown.SetMuteAudio then f.cooldown:SetMuteAudio(true) end
-    f.cd = f.cooldown
-
-    f.NormalTexture = f:CreateTexture(nil, "BORDER")
-    f.NormalTexture:SetAllPoints()
-    f.NormalTexture:SetTexture("Interface\\Buttons\\UI-Quickslot2")
-    f.NormalTexture:SetTexCoord(0, 1, 0, 1)
+    f.cd = CreateFrame("Cooldown", name.."CD", f, "CooldownFrameTemplate")
+    f.cd:SetAllPoints(f.icon)
+    f.cd:SetDrawEdge(true)
+    f.cd:SetHideCountdownNumbers(false)
+    if f.cd.SetMuteAudio then f.cd:SetMuteAudio(true) end
 
     f.glow = f:CreateTexture(nil, "OVERLAY", nil, 2)
-    f.glow:SetPoint("TOPLEFT", -4, 4)
-    f.glow:SetPoint("BOTTOMRIGHT", 4, -4)
+    f.glow:SetPoint("TOPLEFT", -3, 3)
+    f.glow:SetPoint("BOTTOMRIGHT", 3, -3)
     f.glow:SetTexture("Interface\\SpellActivationOverlay\\IconAlert")
     f.glow:SetTexCoord(0, 0.5, 0, 0.5)
     f.glow:SetVertexColor(1, 0.85, 0, 0.9)
     f.glow:Hide()
 
-    f.glowPulse = f.glow:CreateAnimationGroup()
-    f.glowPulse:SetLooping("BOUNCE")
-    local pulse = f.glowPulse:CreateAnimation("Alpha")
-    pulse:SetFromAlpha(0.5)
-    pulse:SetToAlpha(1.0)
-    pulse:SetDuration(0.6)
-    pulse:SetSmoothing("IN_OUT")
-
-    local group = GetMasqueGroup(section)
-    if group then
-        group:AddButton(f, {
-            Icon = f.icon, Cooldown = f.cooldown, Normal = f.NormalTexture,
-            Border = false, Highlight = false, Pushed = false,
-            Disabled = false, Checked = false, AutoCastable = false,
-            Flash = false, Backdrop = false, Name = false,
-            Count = false, Duration = false, HotKey = false, AutoCast = false,
-        }, "Action")
-    end
+    f.glowAnim = f.glow:CreateAnimationGroup()
+    f.glowAnim:SetLooping("BOUNCE")
+    local a = f.glowAnim:CreateAnimation("Alpha")
+    a:SetFromAlpha(0.4); a:SetToAlpha(1); a:SetDuration(0.6); a:SetSmoothing("IN_OUT")
 
     f:Hide()
     return f
@@ -157,17 +125,36 @@ local function EnsureContainer(section)
     return c
 end
 
+local function GetIcon(section, idx)
+    if not sectionIcons[section] then sectionIcons[section] = {} end
+    local icons = sectionIcons[section]
+    if icons[idx] then return icons[idx] end
+    -- Only create outside combat
+    if InCombatLockdown() then return nil end
+    local container = EnsureContainer(section)
+    if not container then return nil end
+    local size = SECTION_SIZES[section] or 24
+    icons[idx] = CreateIcon(container, size)
+    return icons[idx]
+end
+
+---------------------------------------------------------------------------
+-- Section enable / content checks
+---------------------------------------------------------------------------
 local function IsSectionEnabled(section)
     local db = BM.db
-    if section == "buff" then return db.showBuff ~= false end
+    if section == "buff"      then return db.showBuff ~= false end
     if section == "essential" then return db.showEssential ~= false end
-    if section == "utility" then return db.showUtility ~= false end
-    if section == "primary" then return db.showPrimaryBar ~= false end
+    if section == "utility"   then return db.showUtility ~= false end
+    if section == "primary"   then return db.showPrimaryBar ~= false end
     if section == "secondary" then return db.showSecondaryBar ~= false end
     return true
 end
 
-local function SectionHasVisibleIcons(section)
+local function SectionHasContent(section)
+    if not IsSectionEnabled(section) then return false end
+    if section == "primary" then return BM.primaryBar ~= nil end
+    if section == "secondary" then return BM.secondaryContainer ~= nil end
     local icons = sectionIcons[section]
     if not icons then return false end
     for _, ic in ipairs(icons) do
@@ -176,18 +163,14 @@ local function SectionHasVisibleIcons(section)
     return false
 end
 
-local function SectionHasContent(section)
-    if not IsSectionEnabled(section) then return false end
-    if section == "primary" then return BM.primaryBar ~= nil end
-    if section == "secondary" then return BM.secondaryContainer ~= nil end
-    return SectionHasVisibleIcons(section)
-end
-
 local function SectionHeight(section)
     if section == "primary" then return BM.db.barHeight end
     return SECTION_SIZES[section] or 20
 end
 
+---------------------------------------------------------------------------
+-- Master layout
+---------------------------------------------------------------------------
 function BM.LayoutAll()
     if not BM.MainFrame then return end
     local db = BM.db
@@ -196,21 +179,21 @@ function BM.LayoutAll()
     local y = 0
 
     for i = #order, 1, -1 do
-        local section = order[i]
-        if SectionHasContent(section) then
-            local h = SectionHeight(section)
-            if section == "primary" and BM.primaryBar then
+        local sec = order[i]
+        if SectionHasContent(sec) then
+            local h = SectionHeight(sec)
+            if sec == "primary" and BM.primaryBar then
                 BM.primaryBar:ClearAllPoints()
                 BM.primaryBar:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
                 BM.primaryBar:SetSize(w, h)
                 BM.primaryBar:Show()
-            elseif section == "secondary" and BM.secondaryContainer then
+            elseif sec == "secondary" and BM.secondaryContainer then
                 BM.secondaryContainer:ClearAllPoints()
                 BM.secondaryContainer:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
                 BM.secondaryContainer:SetSize(w, h)
                 BM.secondaryContainer:Show()
             else
-                local c = containers[section]
+                local c = containers[sec]
                 if c then
                     c:ClearAllPoints()
                     c:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
@@ -220,10 +203,9 @@ function BM.LayoutAll()
             end
             y = y + h
         else
-            local c = containers[section]
-            if c then c:Hide() end
-            if section == "primary" and BM.primaryBar then BM.primaryBar:Hide() end
-            if section == "secondary" and BM.secondaryContainer then BM.secondaryContainer:Hide() end
+            if containers[sec] then containers[sec]:Hide() end
+            if sec == "primary" and BM.primaryBar then BM.primaryBar:Hide() end
+            if sec == "secondary" and BM.secondaryContainer then BM.secondaryContainer:Hide() end
         end
     end
 
@@ -231,56 +213,42 @@ function BM.LayoutAll()
     BM.MainFrame:SetSize(w, math.max(y, 20))
 end
 
--- Pre-allocate icon pool per section to avoid CreateFrame during combat
-local PREALLOC = { essential = 12, buff = 10, utility = 10 }
-
-local function PreallocateIcons()
-    for section, count in pairs(PREALLOC) do
-        local container = EnsureContainer(section)
-        if container then
-            if not sectionIcons[section] then sectionIcons[section] = {} end
-            local icons = sectionIcons[section]
-            local size = SECTION_SIZES[section] or 24
-            for i = #icons + 1, count do
-                icons[i] = CreateMirrorIcon(container, size, section)
-            end
-        end
-    end
-end
-
-local function RefreshSection(section, skipLayout)
+---------------------------------------------------------------------------
+-- Section refresh: collect blizzard frames → mirror into our icons
+---------------------------------------------------------------------------
+local function RefreshSection(section)
     local container = EnsureContainer(section)
     if not container then return end
 
     local size = SECTION_SIZES[section] or 24
     local isBuff = (section == "buff")
-
     if not sectionIcons[section] then sectionIcons[section] = {} end
     local icons = sectionIcons[section]
 
+    -- hide all existing icons
     for _, ic in ipairs(icons) do
         ic:Hide()
-        if ic.glow then ic.glow:Hide() end
-        if ic.glowPulse then ic.glowPulse:Stop() end
+        ic.glow:Hide()
+        ic.glowAnim:Stop()
     end
 
     if not IsSectionEnabled(section) then
         container:Hide()
-        if not skipLayout then BM.LayoutAll() end
         return
     end
 
-    local sourceFrames = {}
-    local viewers = SECTION_VIEWERS[section]
-    if viewers then
-        for _, vName in ipairs(viewers) do
+    -- collect blizzard source frames
+    local sources = {}
+    local viewerList = SECTION_TO_VIEWERS[section]
+    if viewerList then
+        for _, vName in ipairs(viewerList) do
             local viewer = _G[vName]
             if viewer and viewer.itemFramePool then
                 for frame in viewer.itemFramePool:EnumerateActive() do
                     if frame and frame:IsShown() then
-                        local spellID = GetSpellIDFromFrame(frame)
-                        if spellID then
-                            sourceFrames[#sourceFrames + 1] = { frame = frame, spellID = spellID }
+                        local sid = GetSpellIDFromFrame(frame)
+                        if sid then
+                            sources[#sources+1] = { f = frame, id = sid }
                         end
                     end
                 end
@@ -288,57 +256,30 @@ local function RefreshSection(section, skipLayout)
         end
     end
 
+    -- mirror each source into our icon pool
     local spacing = (section == "utility") and 1 or 2
-    local currentActiveBuffs = {}
-
-    for idx, entry in ipairs(sourceFrames) do
-        local frame = entry.frame
-        local spellID = entry.spellID
-
-        local ic = icons[idx]
-        if not ic then
-            if not InCombatLockdown() then
-                ic = CreateMirrorIcon(container, size, section)
-                icons[idx] = ic
-            else
-                break
-            end
-        end
+    for idx, src in ipairs(sources) do
+        local ic = GetIcon(section, idx)
+        if not ic then break end  -- combat, can't create more
         ic:SetSize(size, size)
 
-        local tex = C_Spell.GetSpellTexture(spellID)
+        local tex = C_Spell.GetSpellTexture(src.id)
         if tex then ic.icon:SetTexture(tex) end
 
         ic:ClearAllPoints()
-        ic:SetPoint("LEFT", container, "LEFT", (idx - 1) * (size + spacing), 0)
+        ic:SetPoint("LEFT", container, "LEFT", (idx-1) * (size + spacing), 0)
 
-        if isBuff then
-            local active = IsFrameActive(frame)
-            if active then
-                ic.glow:Show()
-                if not ic.glowPulse:IsPlaying() then ic.glowPulse:Play() end
-                ic.icon:SetDesaturated(false)
-                currentActiveBuffs[spellID] = true
-            else
-                ic.glow:Hide()
-                ic.glowPulse:Stop()
-                ic.icon:SetDesaturated(true)
-            end
-            if frame.Cooldown then
-                local cdStart, cdDuration = frame.Cooldown:GetCooldownTimes()
-                if cdStart and cdDuration then
-                    cdStart = cdStart / 1000; cdDuration = cdDuration / 1000
-                    if cdDuration > 0 then ic.cd:SetCooldown(cdStart, cdDuration)
-                    else ic.cd:Clear() end
-                end
-            end
-        else
-            if frame.Cooldown then
-                local cdStart, cdDuration = frame.Cooldown:GetCooldownTimes()
-                if cdStart and cdDuration then
-                    cdStart = cdStart / 1000; cdDuration = cdDuration / 1000
-                    if cdDuration > 1.5 then
-                        ic.cd:SetCooldown(cdStart, cdDuration)
+        -- cooldown mirror
+        local srcCD = src.f.Cooldown
+        if srcCD then
+            local s, d = srcCD:GetCooldownTimes()
+            if s and d then
+                s = s / 1000; d = d / 1000
+                if isBuff then
+                    if d > 0 then ic.cd:SetCooldown(s, d) else ic.cd:Clear() end
+                else
+                    if d > 1.5 then
+                        ic.cd:SetCooldown(s, d)
                         ic.icon:SetDesaturated(true)
                     else
                         ic.cd:Clear()
@@ -348,97 +289,111 @@ local function RefreshSection(section, skipLayout)
             end
         end
 
+        -- buff glow
+        if isBuff then
+            local active = IsFrameActive(src.f)
+            if active then
+                ic.glow:Show()
+                if not ic.glowAnim:IsPlaying() then ic.glowAnim:Play() end
+                ic.icon:SetDesaturated(false)
+            else
+                ic.glow:Hide()
+                ic.glowAnim:Stop()
+                ic.icon:SetDesaturated(true)
+            end
+        end
+
         ic:Show()
     end
 
-    if isBuff then prevActiveBuffs = currentActiveBuffs end
-    if #sourceFrames > 0 then
-        container:Show()
-    else
-        container:Hide()
+    if #sources > 0 then container:Show() else container:Hide() end
+end
+
+---------------------------------------------------------------------------
+-- Pre-allocate icons outside combat
+---------------------------------------------------------------------------
+local function Preallocate()
+    local counts = { essential = 12, buff = 8, utility = 8 }
+    for sec, n in pairs(counts) do
+        local container = EnsureContainer(sec)
+        if container then
+            for i = 1, n do GetIcon(sec, i) end
+        end
     end
-    if not skipLayout then BM.LayoutAll() end
 end
 
-local function OnViewerChanged(viewerName)
-    local section = VIEWER_TO_SECTION[viewerName]
-    if section then RefreshSection(section) end
-end
+---------------------------------------------------------------------------
+-- Hooking
+---------------------------------------------------------------------------
+local hookedViewers = {}
+local hookedMixins = false
 
-local function HookViewer(viewerName)
-    local viewer = _G[viewerName]
-    if not viewer then return end
-    if hookedViewers[viewer] then return end
+local function HookViewer(vName)
+    local viewer = _G[vName]
+    if not viewer or hookedViewers[viewer] then return end
     hookedViewers[viewer] = true
 
-    local function OnChange() OnViewerChanged(viewerName) end
+    local sec = VIEWER_TO_SECTION[vName]
+    local function onChange() if sec then RefreshSection(sec) end end
 
-    if viewer.RefreshData then hooksecurefunc(viewer, "RefreshData", OnChange) end
-    if viewer.UpdateLayout then
-        hooksecurefunc(viewer, "UpdateLayout", OnChange)
-    elseif viewer.Layout then
-        hooksecurefunc(viewer, "Layout", OnChange)
-    end
-    if viewer.RefreshLayout then hooksecurefunc(viewer, "RefreshLayout", OnChange) end
-
+    if viewer.RefreshData    then hooksecurefunc(viewer, "RefreshData", onChange) end
+    if viewer.UpdateLayout   then hooksecurefunc(viewer, "UpdateLayout", onChange)
+    elseif viewer.Layout     then hooksecurefunc(viewer, "Layout", onChange) end
+    if viewer.RefreshLayout  then hooksecurefunc(viewer, "RefreshLayout", onChange) end
     if viewer.itemFramePool then
-        hooksecurefunc(viewer.itemFramePool, "Acquire", OnChange)
-        hooksecurefunc(viewer.itemFramePool, "Release", OnChange)
+        hooksecurefunc(viewer.itemFramePool, "Acquire", onChange)
+        hooksecurefunc(viewer.itemFramePool, "Release", onChange)
     end
-
-    viewer:HookScript("OnShow", OnChange)
-    OnChange()
+    viewer:HookScript("OnShow", onChange)
+    onChange()
 end
 
 local function HookMixins()
-    if hookedMixins.done then return end
-
+    if hookedMixins then return end
+    hookedMixins = true
     local map = {
         CooldownViewerEssentialItemMixin = VIEWERS.ESSENTIAL,
         CooldownViewerUtilityItemMixin   = VIEWERS.UTILITY,
         CooldownViewerBuffIconItemMixin  = VIEWERS.BUFF,
         CooldownViewerBuffBarItemMixin   = VIEWERS.BUFF_BAR,
     }
-
-    for mixinName, vName in pairs(map) do
-        local mixin = _G[mixinName]
-        if mixin then
-            if mixin.OnCooldownIDSet then
-                hooksecurefunc(mixin, "OnCooldownIDSet", function()
-                    OnViewerChanged(vName)
-                end)
-            end
-            if mixin.OnActiveStateChanged then
-                hooksecurefunc(mixin, "OnActiveStateChanged", function()
-                    OnViewerChanged(vName)
-                end)
-            end
+    for name, vName in pairs(map) do
+        local m = _G[name]
+        if m then
+            local sec = VIEWER_TO_SECTION[vName]
+            local cb = function() if sec then RefreshSection(sec) end end
+            if m.OnCooldownIDSet      then hooksecurefunc(m, "OnCooldownIDSet", cb) end
+            if m.OnActiveStateChanged then hooksecurefunc(m, "OnActiveStateChanged", cb) end
         end
     end
-    hookedMixins.done = true
 end
 
-local ALL_ICON_SECTIONS = { "essential", "buff", "utility" }
-local refreshTimer = 0
-local refreshFrame = CreateFrame("Frame")
-refreshFrame:SetScript("OnUpdate", function(self, elapsed)
-    refreshTimer = refreshTimer + elapsed
-    if refreshTimer < 0.15 then return end
-    refreshTimer = 0
+---------------------------------------------------------------------------
+-- Periodic fallback: refresh all sections + layout, once per cycle
+---------------------------------------------------------------------------
+local timer = 0
+local tickFrame = CreateFrame("Frame")
+tickFrame:SetScript("OnUpdate", function(_, dt)
+    timer = timer + dt
+    if timer < 0.15 then return end
+    timer = 0
     if not BM.MainFrame or not BM.MainFrame:IsShown() then return end
-    for _, section in ipairs(ALL_ICON_SECTIONS) do
-        RefreshSection(section, true)
+    for _, sec in ipairs(ALL_SECTIONS) do
+        RefreshSection(sec)
     end
     BM.LayoutAll()
 end)
 
-function BM.SwapSectionOrder(sectionKey, direction)
+---------------------------------------------------------------------------
+-- Public API
+---------------------------------------------------------------------------
+function BM.SwapSectionOrder(key, dir)
     local order = BM.db.layoutOrder
-    for i, key in ipairs(order) do
-        if key == sectionKey then
-            local target = i + direction
-            if target >= 1 and target <= #order then
-                order[i], order[target] = order[target], order[i]
+    for i, k in ipairs(order) do
+        if k == key then
+            local t = i + dir
+            if t >= 1 and t <= #order then
+                order[i], order[t] = order[t], order[i]
                 BM.LayoutAll()
             end
             return
@@ -447,7 +402,7 @@ function BM.SwapSectionOrder(sectionKey, direction)
 end
 
 function BM.InitViewerHooks()
-    PreallocateIcons()
+    Preallocate()
     for _, vName in ipairs(ALL_VIEWER_NAMES) do HookViewer(vName) end
     HookMixins()
     BM.LayoutAll()
