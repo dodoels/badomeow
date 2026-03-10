@@ -52,3 +52,9 @@ SOFTWARE.
    作者: devdeadviz
    来源: https://github.com/devdeadviz/arc-ui
    说明: 组件化 UI 设计框架，其模块化设计思路启发了本插件的 UI 结构。
+
+5. Masque
+   作者: StormFX (JJ Sheets 原始项目)
+   来源: https://github.com/SFX-WoW/Masque
+   协议: Refer to Masque's own license
+   说明: WoW 图标皮肤引擎，本插件通过 Masque API 支持自定义图标外观。
