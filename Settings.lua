@@ -107,6 +107,65 @@ local function CreateOptionsPanel()
         btn:SetScript("OnClick", onClick)
     end
 
+    local popupMenu
+    local function ShowPopupMenu(anchor, items)
+        if popupMenu then popupMenu:Hide() end
+        popupMenu = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+        popupMenu:SetFrameStrata("TOOLTIP")
+        popupMenu:SetClampedToScreen(true)
+        popupMenu:SetBackdrop({
+            bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true, tileSize = 8, edgeSize = 12,
+            insets = { left = 2, right = 2, top = 2, bottom = 2 },
+        })
+        popupMenu:SetBackdropColor(0.1, 0.1, 0.1, 0.95)
+
+        local btnH = 18
+        local maxH = math.min(#items * btnH + 8, 400)
+        local menuW = 240
+
+        local scroll = CreateFrame("ScrollFrame", nil, popupMenu, "UIPanelScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT", 4, -4)
+        scroll:SetPoint("BOTTOMRIGHT", -22, 4)
+
+        local scrollChild = CreateFrame("Frame", nil, scroll)
+        scrollChild:SetSize(menuW - 26, #items * btnH)
+        scroll:SetScrollChild(scrollChild)
+
+        for i, item in ipairs(items) do
+            local row = CreateFrame("Button", nil, scrollChild)
+            row:SetSize(menuW - 26, btnH)
+            row:SetPoint("TOPLEFT", 0, -(i - 1) * btnH)
+            row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+
+            local txt = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            txt:SetPoint("LEFT", 4, 0)
+            txt:SetText(item.text or "")
+            if item.checked then txt:SetTextColor(0.3, 1, 0.3) end
+
+            row:SetScript("OnClick", function()
+                if item.func then item.func() end
+                if popupMenu then popupMenu:Hide(); popupMenu = nil end
+            end)
+        end
+
+        popupMenu:SetSize(menuW, maxH)
+        popupMenu:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, 0)
+        popupMenu:Show()
+        popupMenu:SetScript("OnHide", function(self) self:SetScript("OnHide", nil) end)
+        C_Timer.After(0.05, function()
+            if popupMenu then
+                popupMenu:SetScript("OnUpdate", function(self)
+                    if not MouseIsOver(self) and not MouseIsOver(anchor) then
+                        self:Hide()
+                        popupMenu = nil
+                    end
+                end)
+            end
+        end)
+    end
+
     ---------------------------------------------------------------------------
     -- Title
     ---------------------------------------------------------------------------
@@ -341,8 +400,7 @@ local function CreateOptionsPanel()
                     end,
                 }
             end
-            local dropdown = CreateFrame("Frame", "ffsTexMenu_" .. dbKey, UIParent, "UIDropDownMenuTemplate")
-            EasyMenu(menu, dropdown, self, 0, 0, "MENU")
+            ShowPopupMenu(self, menu)
         end)
     end
 
@@ -443,8 +501,7 @@ local function CreateOptionsPanel()
                         }
                     end
                 end
-                local dd = CreateFrame("Frame", "ffsOvMenu" .. idx, UIParent, "UIDropDownMenuTemplate")
-                EasyMenu(menu, dd, self, 0, 0, "MENU")
+                ShowPopupMenu(self, menu)
             end)
 
             -- Manual path input (power user)
