@@ -102,15 +102,7 @@ local function ShouldShow()
     if not BM.db.enabled then return false end
     if not isDruid then return false end
     if currentSpecID == 0 then return false end
-    if not BM.db.locked then return true end
-
-    local vis = BM.db.visibility
-    if vis == "always" then return true end
-    if vis == "hidden" then return false end
-    if vis == "combat" then return inCombat end
-    if vis == "target" then return hasTarget end
-    if vis == "combat_or_target" then return inCombat or hasTarget end
-    return inCombat
+    return true
 end
 
 function BM.UpdateVisibility()
