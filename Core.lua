@@ -7,9 +7,18 @@ local L
 local MainFrame
 local isDruid = false
 local currentSpecID = 0
+local currentFormPower = nil  -- override power type from shapeshift
 local inCombat = false
 local hasTarget = false
 local isVisible = false
+
+-- Shapeshift form IDs for Druid
+local FORM_NONE    = 0
+local FORM_CAT     = 2
+local FORM_TRAVEL  = 3
+local FORM_BEAR    = 1
+local FORM_MOONKIN = 4
+-- Note: GetShapeshiftFormID() returns form index, varies by spec
 
 -- ==========================================
 -- Utility
@@ -49,6 +58,38 @@ function BM.GetCurrentSpecID()
 end
 
 -- ==========================================
+-- Shapeshift form → effective power override
+-- ==========================================
+local function DetectFormOverride()
+    local formID = GetShapeshiftFormID()
+    if formID == CAT_FORM then
+        return {
+            powerType = Enum.PowerType.Energy,
+            secondaryPower = Enum.PowerType.ComboPoints,
+            maxSecondary = 5,
+            powerLabel = "能量",
+            secondaryLabel = "连击点",
+        }
+    elseif formID == BEAR_FORM then
+        return {
+            powerType = Enum.PowerType.Rage,
+            secondaryPower = nil,
+            maxSecondary = 0,
+            powerLabel = "怒气",
+            secondaryLabel = nil,
+        }
+    end
+    return nil
+end
+
+-- Returns effective resource info: form override > spec default
+function BM.GetEffectiveResourceData()
+    local override = DetectFormOverride()
+    if override then return override end
+    return BM.SpecData[currentSpecID]
+end
+
+-- ==========================================
 -- Style
 -- ==========================================
 function BM.GetCurrentStyle()
@@ -63,8 +104,6 @@ local function ShouldShow()
     if not BM.db.enabled then return false end
     if not isDruid then return false end
     if currentSpecID == 0 then return false end
-
-    -- Always show when unlocked so the user can drag it
     if not BM.db.locked then return true end
 
     local vis = BM.db.visibility
@@ -88,7 +127,6 @@ function BM.UpdateVisibility()
         isVisible = false
     end
 
-    -- Show drag hint when unlocked
     if MainFrame.title then
         if not BM.db.locked and isVisible then
             local specCN = BM.SpecNamesCN[currentSpecID] or ""
@@ -111,7 +149,7 @@ local function OnSpecChanged()
 
     local specData = BM.SpecData[currentSpecID]
     if not specData then
-        MainFrame:Hide()
+        if MainFrame then MainFrame:Hide() end
         isVisible = false
         return
     end
@@ -121,19 +159,28 @@ local function OnSpecChanged()
 
     if BM.RebuildResourceBars then BM.RebuildResourceBars() end
     if BM.RebuildDisplay then BM.RebuildDisplay() end
-
     BM.UpdateVisibility()
 end
 
 -- ==========================================
--- Main frame setup
+-- Shapeshift form change handler
+-- ==========================================
+local lastFormID = -1
+function BM.OnFormChanged()
+    local formID = GetShapeshiftFormID() or 0
+    if formID == lastFormID then return end
+    lastFormID = formID
+    if BM.RebuildResourceBars then BM.RebuildResourceBars() end
+end
+
+-- ==========================================
+-- Main frame setup (transparent, no backdrop)
 -- ==========================================
 local function SetupMainFrame()
-    MainFrame = CreateFrame("Frame", "badomeowFrame", UIParent, "BackdropTemplate")
+    MainFrame = CreateFrame("Frame", "badomeowFrame", UIParent)
     BM.MainFrame = MainFrame
 
     local db = BM.db
-    local style = BM.GetCurrentStyle()
 
     MainFrame:SetSize(db.barWidth + 20, 200)
     MainFrame:SetPoint("CENTER", UIParent, "CENTER", db.mainFrameX, db.mainFrameY)
@@ -142,25 +189,15 @@ local function SetupMainFrame()
     MainFrame:SetFrameLevel(10)
     MainFrame:SetClampedToScreen(true)
 
-    MainFrame:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile     = true,
-        tileSize = 16,
-        edgeSize = 16,
-        insets   = { left = 4, right = 4, top = 4, bottom = 4 },
-    })
-    MainFrame:SetBackdropColor(unpack(style.bgColor))
-    MainFrame:SetBackdropBorderColor(unpack(style.borderColor))
-
-    -- Custom background layer
+    -- Custom background layer (user images, or nothing by default)
     MainFrame.customBg = MainFrame:CreateTexture(nil, "BACKGROUND", nil, -1)
     MainFrame.customBg:SetAllPoints(MainFrame)
+    MainFrame.customBg:Hide()
     BM.ApplyCustomBackground()
 
     -- Title bar
     MainFrame.title = MainFrame:CreateFontString(nil, "OVERLAY")
-    MainFrame.title:SetFont(style.fontName, 9, "OUTLINE")
+    MainFrame.title:SetFont("Fonts\\FRIZQT__.TTF", 9, "OUTLINE")
     MainFrame.title:SetPoint("TOP", MainFrame, "TOP", 0, -3)
     MainFrame.title:SetTextColor(0.5, 0.8, 0.4, 0.6)
     MainFrame.title:SetText("")
@@ -188,6 +225,7 @@ local function SetupMainFrame()
             self:EnableMouse(not BM.db.locked)
             local msg = BM.db.locked and L["LOCK_FRAME"] or L["UNLOCK_FRAME"]
             print("|cFF00FF00badomeow:|r " .. msg)
+            BM.UpdateVisibility()
         end
     end)
 
@@ -240,11 +278,8 @@ end
 -- ==========================================
 function BM.RefreshAll()
     if not MainFrame then return end
-    local style = BM.GetCurrentStyle()
     local db = BM.db
 
-    MainFrame:SetBackdropColor(unpack(style.bgColor))
-    MainFrame:SetBackdropBorderColor(unpack(style.borderColor))
     MainFrame:SetSize(db.barWidth + 20, 200)
     MainFrame:SetScale(db.scale)
     MainFrame:EnableMouse(not db.locked)
@@ -276,6 +311,8 @@ EventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
 EventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
 EventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 EventFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+EventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
+EventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORMS")
 
 EventFrame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == addonName then
@@ -300,6 +337,8 @@ EventFrame:SetScript("OnEvent", function(self, event, arg1)
         hasTarget = UnitExists("target")
         inCombat = InCombatLockdown()
         OnSpecChanged()
+        lastFormID = -1
+        BM.OnFormChanged()
 
     elseif event == "PLAYER_REGEN_DISABLED" then
         inCombat = true
@@ -318,24 +357,29 @@ EventFrame:SetScript("OnEvent", function(self, event, arg1)
 
     elseif event == "PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then
         if isDruid then OnSpecChanged() end
+
+    elseif event == "UPDATE_SHAPESHIFT_FORM" or event == "UPDATE_SHAPESHIFT_FORMS" then
+        if isDruid then BM.OnFormChanged() end
     end
 end)
 
 -- ==========================================
 -- Slash commands
--- /bm is reserved by Blizzard (benchmark), use /bdm and /badomeow
+-- Registered at file scope so they're available immediately.
+-- Using a unique hash key to avoid any conflict.
 -- ==========================================
 SLASH_BADOMEOW1 = "/bdm"
 SLASH_BADOMEOW2 = "/badomeow"
 SLASH_BADOMEOW3 = "/baomeow"
-SlashCmdList["BADOMEOW"] = function(msg)
+SLASH_BADOMEOW4 = "/bado"
+SlashCmdList.BADOMEOW = function(msg)
     if not isDruid then
         print("|cFFFF5555badomeow:|r 此插件仅适用于德鲁伊职业")
         return
     end
 
-    if not MainFrame or not L then
-        print("|cFFFF5555badomeow:|r 插件尚未完成初始化")
+    if not MainFrame then
+        print("|cFFFF5555badomeow:|r 插件尚未完成初始化，请先 /reload")
         return
     end
 
@@ -344,18 +388,20 @@ SlashCmdList["BADOMEOW"] = function(msg)
         BM.db.locked = true
         MainFrame:SetMovable(false)
         MainFrame:EnableMouse(false)
-        print("|cFF00FF00badomeow:|r " .. L["LOCK_FRAME"])
+        print("|cFF00FF00badomeow:|r " .. (L and L["LOCK_FRAME"] or "Locked"))
+        BM.UpdateVisibility()
     elseif msg == "unlock" then
         BM.db.locked = false
         MainFrame:SetMovable(true)
         MainFrame:EnableMouse(true)
-        print("|cFF00FF00badomeow:|r " .. L["UNLOCK_FRAME"])
+        print("|cFF00FF00badomeow:|r " .. (L and L["UNLOCK_FRAME"] or "Unlocked"))
+        BM.UpdateVisibility()
     elseif msg == "reset" then
         BM.db.mainFrameX = 0
         BM.db.mainFrameY = -200
         MainFrame:ClearAllPoints()
         MainFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -200)
-        print("|cFF00FF00badomeow:|r " .. L["RESET_POSITION"])
+        print("|cFF00FF00badomeow:|r " .. (L and L["RESET_POSITION"] or "Reset"))
     elseif msg == "toggle" then
         BM.db.enabled = not BM.db.enabled
         BM.RefreshAll()
@@ -365,6 +411,8 @@ SlashCmdList["BADOMEOW"] = function(msg)
     else
         if BM.OpenSettings then
             BM.OpenSettings()
+        else
+            print("|cFF00FF00badomeow:|r /bdm lock | unlock | reset | toggle | spec")
         end
     end
 end
