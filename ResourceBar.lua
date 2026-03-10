@@ -43,10 +43,12 @@ local function CreatePrimaryBar(resData)
     local style = BM.GetCurrentStyle()
     local parent = GetParent("primary")
 
+    parent:SetSize(db.barWidth, db.barHeight)
+
     primaryBar = CreateFrame("StatusBar", "badomeowPrimaryBar", parent)
-    primaryBar:SetSize(db.barWidth, db.barHeight)
     primaryBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    primaryBar:SetAllPoints(parent)
+    primaryBar:SetSize(db.barWidth, db.barHeight)
+    primaryBar:SetPoint("CENTER", parent, "CENTER", 0, 0)
 
     local barColor
     if resData.powerType == Enum.PowerType.Energy then barColor = { 1.0, 1.0, 0.0 }
@@ -70,7 +72,6 @@ local function CreatePrimaryBar(resData)
     primaryText:SetPoint("CENTER")
     primaryText:SetTextColor(1, 1, 1, 1)
 
-    parent:SetSize(db.barWidth, db.barHeight)
     BM.primaryBar = primaryBar
 end
 
@@ -85,8 +86,11 @@ local function CreateSecondaryPips(resData)
     local pipW = db.pipWidth or 260
     local pipH = db.pipHeight or 10
 
+    parent:SetSize(pipW, pipH)
+
     secondaryContainer = CreateFrame("Frame", "badomeowSecondaryBar", parent)
-    secondaryContainer:SetAllPoints(parent)
+    secondaryContainer:SetSize(pipW, pipH)
+    secondaryContainer:SetPoint("CENTER", parent, "CENTER", 0, 0)
 
     local gap = 1
     local singleW = (pipW - (maxPips - 1) * gap) / maxPips
@@ -109,7 +113,6 @@ local function CreateSecondaryPips(resData)
         secondaryPips[i] = pip
     end
 
-    parent:SetSize(pipW, pipH)
     BM.secondaryContainer = secondaryContainer
 end
 
@@ -123,10 +126,12 @@ local function CreateManaBar()
     local mW = db.manaBarWidth or 260
     local mH = db.manaBarHeight or 10
 
+    parent:SetSize(mW, mH)
+
     manaBar = CreateFrame("StatusBar", "badomeowManaBar", parent)
-    manaBar:SetSize(mW, mH)
     manaBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    manaBar:SetAllPoints(parent)
+    manaBar:SetSize(mW, mH)
+    manaBar:SetPoint("CENTER", parent, "CENTER", 0, 0)
     manaBar:SetStatusBarColor(0.2, 0.4, 1.0)
 
     local maxMana = UnitPowerMax("player", Enum.PowerType.Mana)
@@ -143,7 +148,6 @@ local function CreateManaBar()
     manaText:SetPoint("CENTER")
     manaText:SetTextColor(1, 1, 1, 1)
 
-    parent:SetSize(mW, mH)
     BM.manaBar = manaBar
 end
 
