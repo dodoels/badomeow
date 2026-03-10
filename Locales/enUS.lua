@@ -3,7 +3,7 @@ if not BM.L then BM.L = {} end
 local L = BM.L
 
 local defaults = {
-    ["ADDON_LOADED"]         = "badomeow loaded - type /bm to open settings",
+    ["ADDON_LOADED"]         = "badomeow loaded - type /bdm or /badomeow to open settings",
     ["SETTINGS_TITLE"]       = "badomeow - Druid Combat Monitor",
     ["GENERAL"]              = "General",
     ["ENABLED"]              = "Enable Addon",

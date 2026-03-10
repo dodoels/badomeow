@@ -308,12 +308,19 @@ end)
 
 -- ==========================================
 -- Slash commands
+-- /bm is reserved by Blizzard (benchmark), use /bdm and /badomeow
 -- ==========================================
-SLASH_BADOMEOW1 = "/bm"
+SLASH_BADOMEOW1 = "/bdm"
 SLASH_BADOMEOW2 = "/badomeow"
+SLASH_BADOMEOW3 = "/baomeow"
 SlashCmdList["BADOMEOW"] = function(msg)
     if not isDruid then
         print("|cFFFF5555badomeow:|r 此插件仅适用于德鲁伊职业")
+        return
+    end
+
+    if not MainFrame or not L then
+        print("|cFFFF5555badomeow:|r 插件尚未完成初始化")
         return
     end
 

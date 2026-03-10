@@ -3,7 +3,7 @@ local _, BM = ...
 BM.L = BM.L or {}
 local L = BM.L
 
-L["ADDON_LOADED"]         = "财高·森境云庭·麓悦夜林·豹集 已加载 - /bm 打开设置"
+L["ADDON_LOADED"]         = "财高·森境云庭·麓悦夜林·豹集 已加载 - /bdm 或 /badomeow 打开设置"
 L["SETTINGS_TITLE"]       = "豹集 badomeow - 德鲁伊全系监控"
 L["GENERAL"]              = "常规设置"
 L["ENABLED"]              = "启用插件"
