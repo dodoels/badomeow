@@ -1,7 +1,7 @@
 local addonName, BM = ...
 
 BM.ADDON_NAME = addonName
-BM.VERSION = "3.0.0"
+BM.VERSION = "3.2.0"
 
 BM.DRUID_CLASS_ID = 11
 
@@ -19,7 +19,6 @@ BM.SpecNamesCN = {
     [105] = "恢复",
 }
 
--- Blizzard CooldownViewer frame names (12.0+)
 BM.VIEWERS = {
     ESSENTIAL = "EssentialCooldownViewer",
     UTILITY   = "UtilityCooldownViewer",
@@ -27,7 +26,6 @@ BM.VIEWERS = {
     BUFF_BAR  = "BuffBarCooldownViewer",
 }
 
--- Combo pip gradient (Feral)
 BM.ComboPipColors = {
     [1] = { 1.0, 0.9, 0.2 },
     [2] = { 1.0, 0.7, 0.1 },
@@ -36,7 +34,6 @@ BM.ComboPipColors = {
     [5] = { 1.0, 0.1, 0.0 },
 }
 
--- Style presets
 BM.Styles = {
     ["default"] = {
         name        = "默认 / Default",
@@ -61,7 +58,6 @@ BM.Styles = {
     },
 }
 
--- Section keys used for layout ordering and toggle
 BM.SECTIONS = { "buff", "secondary", "primary", "essential", "utility" }
 BM.SECTION_LABELS = {
     buff      = "增益/触发",
@@ -81,14 +77,15 @@ BM.DefaultDB = {
     showUtility     = true,
     showPrimaryBar  = true,
     showSecondaryBar = true,
-    playProcSound   = false,
-    playCdSound     = false,
     scale           = 1.0,
     mainFrameX      = 0,
     mainFrameY      = -200,
     barWidth        = 260,
     barHeight       = 18,
-    soundVolume     = 1.0,
-    -- Layout order (top to bottom): each entry is a section key
+    essentialSize   = 36,
+    buffSize        = 30,
+    utilitySize     = 26,
+    iconSpacing     = 2,
+    sectionGap      = 1,
     layoutOrder     = { "buff", "secondary", "primary", "essential", "utility" },
 }

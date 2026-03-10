@@ -10,12 +10,6 @@ local VIEWERS = BM.VIEWERS
 
 local containers = {}
 
-local SECTION_SIZES = {
-    buff      = 26,
-    essential = 30,
-    utility   = 22,
-}
-
 local SECTION_TO_VIEWERS = {
     essential = { VIEWERS.ESSENTIAL },
     utility   = { VIEWERS.UTILITY },
@@ -34,26 +28,24 @@ for _, list in pairs(SECTION_TO_VIEWERS) do
 end
 
 ---------------------------------------------------------------------------
--- IsSafeNumber — identical approach to Ayije_CDM
+-- IsSafeNumber
 ---------------------------------------------------------------------------
 local function IsSafeNumber(value)
     if value == nil or type(value) ~= "number" then return false end
-    if issecretvalue then
-        return not issecretvalue(value)
-    end
+    if issecretvalue then return not issecretvalue(value) end
     local ok, _ = pcall(tostring, value)
     return ok
 end
 
-local function IsSafeValue(value)
-    if value == nil then return false end
-    if type(value) == "number" then return IsSafeNumber(value) end
-    if type(value) == "boolean" then
-        if issecretvalue then return not issecretvalue(value) end
-        local ok, _ = pcall(tostring, value)
-        return ok
-    end
-    return true
+---------------------------------------------------------------------------
+-- Section size from db
+---------------------------------------------------------------------------
+local function GetSectionIconSize(section)
+    local db = BM.db
+    if section == "essential" then return db.essentialSize or 36 end
+    if section == "buff"      then return db.buffSize or 30 end
+    if section == "utility"   then return db.utilitySize or 26 end
+    return 30
 end
 
 ---------------------------------------------------------------------------
@@ -69,22 +61,28 @@ local function IsSectionEnabled(section)
     return true
 end
 
+local function SectionVisibleCount(section)
+    local c = containers[section]
+    if not c then return 0 end
+    local count = 0
+    local children = { c:GetChildren() }
+    for _, child in ipairs(children) do
+        if child:IsShown() then count = count + 1 end
+    end
+    return count
+end
+
 local function SectionHasContent(section)
     if not IsSectionEnabled(section) then return false end
     if section == "primary" then return BM.primaryBar ~= nil end
     if section == "secondary" then return BM.secondaryContainer ~= nil end
-    local c = containers[section]
-    if not c then return false end
-    local children = { c:GetChildren() }
-    for _, child in ipairs(children) do
-        if child:IsShown() then return true end
-    end
-    return false
+    return SectionVisibleCount(section) > 0
 end
 
 local function SectionHeight(section)
     if section == "primary" then return BM.db.barHeight end
-    return SECTION_SIZES[section] or 20
+    if section == "secondary" then return 10 end
+    return GetSectionIconSize(section)
 end
 
 local function EnsureContainer(section)
@@ -97,18 +95,21 @@ local function EnsureContainer(section)
 end
 
 ---------------------------------------------------------------------------
--- Master layout
+-- Master layout: stacks sections vertically with gap
 ---------------------------------------------------------------------------
 function BM.LayoutAll()
     if not BM.MainFrame then return end
     local db = BM.db
     local w = db.barWidth
     local order = db.layoutOrder or BM.SECTIONS
+    local gap = db.sectionGap or 1
     local y = 0
+    local visCount = 0
 
     for i = #order, 1, -1 do
         local sec = order[i]
         if SectionHasContent(sec) then
+            if visCount > 0 then y = y + gap end
             local h = SectionHeight(sec)
             if sec == "primary" and BM.primaryBar then
                 BM.primaryBar:ClearAllPoints()
@@ -123,13 +124,18 @@ function BM.LayoutAll()
             else
                 local c = containers[sec]
                 if c then
+                    local iconSz = GetSectionIconSize(sec)
+                    local nIcons = SectionVisibleCount(sec)
+                    local spacing = db.iconSpacing or 2
+                    local cw = math.max(nIcons * (iconSz + spacing) - spacing, iconSz)
                     c:ClearAllPoints()
-                    c:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
-                    c:SetSize(w, h)
+                    c:SetPoint("BOTTOM", BM.MainFrame, "BOTTOMLEFT", w * 0.5, y)
+                    c:SetSize(cw, h)
                     c:Show()
                 end
             end
             y = y + h
+            visCount = visCount + 1
         else
             if containers[sec] then containers[sec]:Hide() end
             if sec == "primary" and BM.primaryBar then BM.primaryBar:Hide() end
@@ -142,19 +148,19 @@ function BM.LayoutAll()
 end
 
 ---------------------------------------------------------------------------
--- Reparent Blizzard frames into our containers (Ayije_CDM approach)
+-- Reparent & resize Blizzard frames
 ---------------------------------------------------------------------------
 local function LayoutSection(section)
     local container = EnsureContainer(section)
     if not container then return end
-    local size = SECTION_SIZES[section] or 24
+    local iconSz = GetSectionIconSize(section)
+    local spacing = BM.db.iconSpacing or 2
 
     if not IsSectionEnabled(section) then
         container:Hide()
         return
     end
 
-    -- Collect all active frames from all viewers for this section
     local frames = {}
     local viewerList = SECTION_TO_VIEWERS[section]
     if viewerList then
@@ -170,7 +176,6 @@ local function LayoutSection(section)
         end
     end
 
-    -- Sort by layoutIndex (safe check)
     if #frames > 1 then
         table.sort(frames, function(a, b)
             local aIdx = a.layoutIndex
@@ -184,19 +189,18 @@ local function LayoutSection(section)
         end)
     end
 
-    -- Reparent and position each frame
-    local spacing = (section == "utility") and 1 or 2
     for idx, frame in ipairs(frames) do
         frame:SetParent(container)
         frame:ClearAllPoints()
-        frame:SetPoint("LEFT", container, "LEFT", (idx - 1) * (size + spacing), 0)
+        frame:SetSize(iconSz, iconSz)
+        frame:SetPoint("LEFT", container, "LEFT", (idx - 1) * (iconSz + spacing), 0)
     end
 
     if #frames > 0 then container:Show() else container:Hide() end
 end
 
 ---------------------------------------------------------------------------
--- Hooking (same as before but calls LayoutSection)
+-- Hooking
 ---------------------------------------------------------------------------
 local hookedViewers = {}
 local hookedMixins = false
