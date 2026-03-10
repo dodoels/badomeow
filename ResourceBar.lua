@@ -6,6 +6,20 @@ local secondaryPips = {}
 local MAX_PIPS = 5
 local powerFrame
 
+local function GetPrimaryParent()
+    if BM.sectionFrames and BM.sectionFrames["primary"] then
+        return BM.sectionFrames["primary"]
+    end
+    return UIParent
+end
+
+local function GetSecondaryParent()
+    if BM.sectionFrames and BM.sectionFrames["secondary"] then
+        return BM.sectionFrames["secondary"]
+    end
+    return UIParent
+end
+
 local function DestroyBars()
     if primaryBar then primaryBar:Hide(); primaryBar:SetParent(nil) end
     if secondaryContainer then secondaryContainer:Hide(); secondaryContainer:SetParent(nil) end
@@ -21,11 +35,12 @@ end
 local function CreatePrimaryBar(resData)
     local db = BM.db
     local style = BM.GetCurrentStyle()
+    local parent = GetPrimaryParent()
 
-    primaryBar = CreateFrame("StatusBar", "badomeowPrimaryBar", BM.MainFrame)
+    primaryBar = CreateFrame("StatusBar", "badomeowPrimaryBar", parent)
     primaryBar:SetSize(db.barWidth, db.barHeight)
     primaryBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    primaryBar:SetFrameLevel(BM.MainFrame:GetFrameLevel() + 2)
+    primaryBar:SetAllPoints(parent)
 
     local barColor
     if resData.powerType == Enum.PowerType.Energy then barColor = { 1.0, 1.0, 0.0 }
@@ -49,6 +64,7 @@ local function CreatePrimaryBar(resData)
     primaryText:SetPoint("CENTER")
     primaryText:SetTextColor(1, 1, 1, 1)
 
+    parent:SetSize(db.barWidth, db.barHeight)
     BM.primaryBar = primaryBar
 end
 
@@ -56,10 +72,10 @@ local function CreateSecondaryPips(resData)
     if not resData.secondaryPower then return end
     local db = BM.db
     local maxPips = resData.maxSecondary or MAX_PIPS
+    local parent = GetSecondaryParent()
 
-    secondaryContainer = CreateFrame("Frame", "badomeowSecondaryBar", BM.MainFrame)
-    secondaryContainer:SetSize(db.barWidth, 10)
-    secondaryContainer:SetFrameLevel(BM.MainFrame:GetFrameLevel() + 2)
+    secondaryContainer = CreateFrame("Frame", "badomeowSecondaryBar", parent)
+    secondaryContainer:SetAllPoints(parent)
 
     local gap = 1
     local pipWidth = (db.barWidth - (maxPips - 1) * gap) / maxPips
@@ -82,6 +98,7 @@ local function CreateSecondaryPips(resData)
         secondaryPips[i] = pip
     end
 
+    parent:SetSize(db.barWidth, 10)
     BM.secondaryContainer = secondaryContainer
 end
 
@@ -142,7 +159,6 @@ function BM.RebuildResourceBars()
     CreateSecondaryPips(resData)
     UpdatePrimary()
     UpdateSecondary()
-    if BM.LayoutAll then BM.LayoutAll() end
 end
 
 function BM.InitResourceBars()

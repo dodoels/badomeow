@@ -15,7 +15,7 @@ local function CreateOptionsPanel()
     scrollFrame:SetPoint("BOTTOMRIGHT", -36, 16)
 
     local content = CreateFrame("Frame", nil, scrollFrame)
-    content:SetSize(560, 1400)
+    content:SetSize(560, 1200)
     scrollFrame:SetScrollChild(content)
 
     local yOff = -10
@@ -102,7 +102,7 @@ local function CreateOptionsPanel()
         local y = NextY(34)
         local btn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
         btn:SetPoint("TOPLEFT", content, "TOPLEFT", 10, y)
-        btn:SetSize(200, 26)
+        btn:SetSize(220, 26)
         btn:SetText(labelText)
         btn:SetScript("OnClick", onClick)
     end
@@ -114,8 +114,8 @@ local function CreateOptionsPanel()
     title:SetPoint("TOPLEFT", content, "TOPLEFT", 0, NextY(28))
     title:SetText("豹集 badomeow v" .. BM.VERSION)
     title:SetTextColor(0.4, 0.9, 0.4, 1)
-    InfoText("自动 hook 暴雪 CooldownViewer 系统，无需手动配置技能列表。")
-    InfoText("所有冷却、增益数据直接来自游戏官方系统，自动跟随专精切换。")
+    InfoText("自动 hook 暴雪 CooldownViewer，各组件可自由拖动定位。")
+    InfoText("打开设置时会显示所有已启用组件的位置预览。")
 
     Divider()
 
@@ -124,7 +124,6 @@ local function CreateOptionsPanel()
     ---------------------------------------------------------------------------
     Header("常规设置")
     Checkbox("启用插件", "enabled")
-    Checkbox("锁定框体", "locked")
     Slider("整体缩放", "scale", 0.5, 2.0, 0.1, "%.1f")
 
     Divider()
@@ -133,7 +132,7 @@ local function CreateOptionsPanel()
     -- Section toggles
     ---------------------------------------------------------------------------
     Header("组件开关")
-    InfoText("分别控制每个区域的显示/隐藏。关闭后该区域不占空间。")
+    InfoText("开/关各组件。解锁后可分别拖动每个组件到任意位置。")
     Spacer(2)
     Checkbox("增益/触发 (Buff/Proc)", "showBuff")
     Checkbox("核心技能 (Essential)", "showEssential")
@@ -144,16 +143,15 @@ local function CreateOptionsPanel()
     Divider()
 
     ---------------------------------------------------------------------------
-    -- Section icon sizes
+    -- Icon sizes
     ---------------------------------------------------------------------------
     Header("图标尺寸")
-    InfoText("分别设置每个监控区域的图标大小(像素)。")
+    InfoText("分别设置每个监控区域的图标大小和间距。")
     Spacer(2)
     Slider("核心技能图标", "essentialSize", 20, 60, 1)
     Slider("增益/触发图标", "buffSize", 16, 50, 1)
     Slider("工具技能图标", "utilitySize", 14, 44, 1)
-    Slider("图标间距", "iconSpacing", 0, 8, 1)
-    Slider("组件间距", "sectionGap", 0, 10, 1)
+    Slider("图标间距", "iconSpacing", 0, 10, 1)
 
     Divider()
 
@@ -161,70 +159,8 @@ local function CreateOptionsPanel()
     -- Resource bar
     ---------------------------------------------------------------------------
     Header("资源条样式")
-    Slider("资源条宽度", "barWidth", 150, 450, 10)
-    Slider("资源条高度", "barHeight", 10, 40, 2)
-
-    Divider()
-
-    ---------------------------------------------------------------------------
-    -- Layout order
-    ---------------------------------------------------------------------------
-    Header("组件排列顺序")
-    InfoText("点击 ▲ / ▼ 调整各组件从上到下的排列顺序。")
-    Spacer(4)
-
-    local orderWidgets = {}
-    local function RebuildOrderWidgets()
-        local order = BM.db.layoutOrder or BM.SECTIONS
-        for i, w in ipairs(orderWidgets) do
-            local section = order[i]
-            if section then
-                local label = BM.SECTION_LABELS[section] or section
-                w.label:SetText(string.format("%d.  %s", i, label))
-                w.section = section
-                w:Show()
-            else
-                w:Hide()
-            end
-        end
-    end
-
-    for i = 1, #BM.SECTIONS do
-        local y = NextY(30)
-        local row = CreateFrame("Frame", nil, content)
-        row:SetPoint("TOPLEFT", content, "TOPLEFT", 10, y)
-        row:SetSize(400, 26)
-
-        row.label = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        row.label:SetPoint("LEFT", row, "LEFT", 0, 0)
-        row.label:SetJustifyH("LEFT")
-
-        local upBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        upBtn:SetPoint("LEFT", row, "LEFT", 210, 0)
-        upBtn:SetSize(30, 24)
-        upBtn:SetText("▲")
-        upBtn:SetScript("OnClick", function()
-            if row.section then
-                BM.SwapSectionOrder(row.section, -1)
-                RebuildOrderWidgets()
-            end
-        end)
-
-        local downBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        downBtn:SetPoint("LEFT", upBtn, "RIGHT", 4, 0)
-        downBtn:SetSize(30, 24)
-        downBtn:SetText("▼")
-        downBtn:SetScript("OnClick", function()
-            if row.section then
-                BM.SwapSectionOrder(row.section, 1)
-                RebuildOrderWidgets()
-            end
-        end)
-
-        orderWidgets[i] = row
-    end
-
-    panel:HookScript("OnShow", function() RebuildOrderWidgets() end)
+    Slider("资源条宽度", "barWidth", 100, 500, 5)
+    Slider("资源条高度", "barHeight", 8, 50, 1)
 
     Divider()
 
@@ -232,30 +168,25 @@ local function CreateOptionsPanel()
     -- Actions
     ---------------------------------------------------------------------------
     Header("操作")
-    Button("重置位置", function()
-        BM.db.mainFrameX = 0
-        BM.db.mainFrameY = -200
-        if BM.MainFrame then
-            BM.MainFrame:ClearAllPoints()
-            BM.MainFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -200)
-        end
-    end)
 
-    Button("重置排列顺序", function()
-        BM.db.layoutOrder = { "buff", "secondary", "primary", "essential", "utility" }
-        RebuildOrderWidgets()
-        if BM.LayoutAll then BM.LayoutAll() end
-        print("|cFF00FF00badomeow:|r 排列顺序已重置")
-    end)
-
-    Button("解锁框体 (拖动移动)", function()
+    Button("解锁所有组件 (拖动定位)", function()
         if InCombatLockdown() then
-            print("|cFFFF5555badomeow:|r 战斗中无法解锁")
-            return
+            print("|cFFFF5555badomeow:|r 战斗中无法解锁"); return
         end
         BM.db.locked = false
-        BM.UpdateVisibility()
-        print("|cFF00FF00badomeow:|r 框体已解锁，可以拖动，右键点击锁定")
+        if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
+        print("|cFF00FF00badomeow:|r 已解锁，拖动各组件到想要的位置")
+    end)
+
+    Button("锁定所有组件", function()
+        BM.db.locked = true
+        if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
+        print("|cFF00FF00badomeow:|r 已锁定")
+    end)
+
+    Button("重置所有位置", function()
+        if BM.ResetAllPositions then BM.ResetAllPositions() end
+        print("|cFF00FF00badomeow:|r 所有组件位置已重置")
     end)
 
     Divider()
@@ -267,6 +198,19 @@ local function CreateOptionsPanel()
     InfoText("badomeow v" .. BM.VERSION .. " | MIT License")
     InfoText("基于暴雪 CooldownViewer 系统，自动同步所有职业/专精技能数据")
     InfoText("灵感: Ayije_CDM, WeakAuras2, SenseiClassResourceBar")
+
+    ---------------------------------------------------------------------------
+    -- Show/hide preview when settings panel opens/closes
+    ---------------------------------------------------------------------------
+    panel:HookScript("OnShow", function()
+        BM.settingsOpen = true
+        if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
+        BM.UpdateVisibility()
+    end)
+    panel:HookScript("OnHide", function()
+        BM.settingsOpen = false
+        if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
+    end)
 
     return panel
 end

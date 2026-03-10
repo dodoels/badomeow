@@ -1,14 +1,14 @@
 local addonName, BM = ...
 
 --[[
-    Reparents Blizzard CooldownViewer item frames into badomeow containers.
-    Following Ayije_CDM's approach: we never create mirror icons or read
-    secret values. We simply move Blizzard's own frames into our layout.
+    v4: Each section is an independent frame anchored to UIParent.
+    Reparents Blizzard CooldownViewer item frames into section anchors.
+    No secret value access. Each section independently draggable.
 ]]
 
 local VIEWERS = BM.VIEWERS
 
-local containers = {}
+local sectionFrames = {}  -- section -> anchor Frame
 
 local SECTION_TO_VIEWERS = {
     essential = { VIEWERS.ESSENTIAL },
@@ -21,7 +21,7 @@ for sec, list in pairs(SECTION_TO_VIEWERS) do
     for _, v in ipairs(list) do VIEWER_TO_SECTION[v] = sec end
 end
 
-local ALL_SECTIONS = { "essential", "buff", "utility" }
+local ICON_SECTIONS = { "essential", "buff", "utility" }
 local ALL_VIEWER_NAMES = {}
 for _, list in pairs(SECTION_TO_VIEWERS) do
     for _, v in ipairs(list) do ALL_VIEWER_NAMES[#ALL_VIEWER_NAMES + 1] = v end
@@ -38,7 +38,7 @@ local function IsSafeNumber(value)
 end
 
 ---------------------------------------------------------------------------
--- Section size from db
+-- Section icon size from db
 ---------------------------------------------------------------------------
 local function GetSectionIconSize(section)
     local db = BM.db
@@ -49,7 +49,7 @@ local function GetSectionIconSize(section)
 end
 
 ---------------------------------------------------------------------------
--- Helpers
+-- Section enable check
 ---------------------------------------------------------------------------
 local function IsSectionEnabled(section)
     local db = BM.db
@@ -61,103 +61,107 @@ local function IsSectionEnabled(section)
     return true
 end
 
-local function SectionVisibleCount(section)
-    local c = containers[section]
-    if not c then return 0 end
-    local count = 0
-    local children = { c:GetChildren() }
-    for _, child in ipairs(children) do
-        if child:IsShown() then count = count + 1 end
-    end
-    return count
-end
-
-local function SectionHasContent(section)
-    if not IsSectionEnabled(section) then return false end
-    if section == "primary" then return BM.primaryBar ~= nil end
-    if section == "secondary" then return BM.secondaryContainer ~= nil end
-    return SectionVisibleCount(section) > 0
-end
-
-local function SectionHeight(section)
-    if section == "primary" then return BM.db.barHeight end
-    if section == "secondary" then return 10 end
-    return GetSectionIconSize(section)
-end
-
-local function EnsureContainer(section)
-    if containers[section] then return containers[section] end
-    if not BM.MainFrame then return nil end
-    local c = CreateFrame("Frame", nil, BM.MainFrame)
-    c:SetFrameLevel(BM.MainFrame:GetFrameLevel() + 1)
-    containers[section] = c
-    return c
-end
-
 ---------------------------------------------------------------------------
--- Master layout: stacks sections vertically with gap
+-- Create / get section anchor frame (independent, parented to UIParent)
 ---------------------------------------------------------------------------
-function BM.LayoutAll()
-    if not BM.MainFrame then return end
+local function GetPosKey(section) return "pos_" .. section end
+
+local function SaveSectionPos(section)
+    local f = sectionFrames[section]
+    if not f then return end
+    local _, _, _, x, y = f:GetPoint()
+    if not BM.db[GetPosKey(section)] then BM.db[GetPosKey(section)] = {} end
+    BM.db[GetPosKey(section)].x = x
+    BM.db[GetPosKey(section)].y = y
+end
+
+local function MakeDraggable(frame, section)
+    frame:SetMovable(true)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", function(self)
+        if not BM.db.locked and not InCombatLockdown() then
+            self:StartMoving()
+        end
+    end)
+    frame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        SaveSectionPos(section)
+    end)
+end
+
+local function EnsureSectionFrame(section)
+    if sectionFrames[section] then return sectionFrames[section] end
+
+    local f = CreateFrame("Frame", "badomeowSec_" .. section, UIParent)
+    f:SetFrameStrata("MEDIUM")
+    f:SetFrameLevel(12)
+    f:SetClampedToScreen(true)
+
     local db = BM.db
-    local w = db.barWidth
-    local order = db.layoutOrder or BM.SECTIONS
-    local gap = db.sectionGap or 1
-    local y = 0
-    local visCount = 0
+    local pos = db[GetPosKey(section)] or { x = 0, y = -200 }
+    f:SetPoint("CENTER", UIParent, "CENTER", pos.x, pos.y)
+    f:SetScale(db.scale or 1)
+    f:SetSize(100, 30)
 
-    for i = #order, 1, -1 do
-        local sec = order[i]
-        if SectionHasContent(sec) then
-            if visCount > 0 then y = y + gap end
-            local h = SectionHeight(sec)
-            if sec == "primary" and BM.primaryBar then
-                BM.primaryBar:ClearAllPoints()
-                BM.primaryBar:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
-                BM.primaryBar:SetSize(w, h)
-                BM.primaryBar:Show()
-            elseif sec == "secondary" and BM.secondaryContainer then
-                BM.secondaryContainer:ClearAllPoints()
-                BM.secondaryContainer:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
-                BM.secondaryContainer:SetSize(w, h)
-                BM.secondaryContainer:Show()
-            else
-                local c = containers[sec]
-                if c then
-                    local iconSz = GetSectionIconSize(sec)
-                    local nIcons = SectionVisibleCount(sec)
-                    local spacing = db.iconSpacing or 2
-                    local cw = math.max(nIcons * (iconSz + spacing) - spacing, iconSz)
-                    c:ClearAllPoints()
-                    c:SetPoint("BOTTOM", BM.MainFrame, "BOTTOMLEFT", w * 0.5, y)
-                    c:SetSize(cw, h)
-                    c:Show()
-                end
+    MakeDraggable(f, section)
+
+    -- Label shown when unlocked
+    f.label = f:CreateFontString(nil, "OVERLAY")
+    f.label:SetFont("Fonts\\FRIZQT__.TTF", 9, "OUTLINE")
+    f.label:SetPoint("TOP", f, "TOP", 0, 12)
+    f.label:SetTextColor(1, 0.85, 0, 0.8)
+    f.label:SetText(BM.SECTION_LABELS[section] or section)
+    f.label:Hide()
+
+    -- Background shown when unlocked (subtle)
+    f.bg = f:CreateTexture(nil, "BACKGROUND")
+    f.bg:SetAllPoints()
+    f.bg:SetColorTexture(0.1, 0.1, 0.1, 0.4)
+    f.bg:Hide()
+
+    sectionFrames[section] = f
+    return f
+end
+
+BM.sectionFrames = sectionFrames
+
+---------------------------------------------------------------------------
+-- Update lock/unlock visuals for all section frames
+---------------------------------------------------------------------------
+function BM.UpdateSectionLockState()
+    local locked = BM.db.locked
+    local settingsOpen = BM.settingsOpen
+    local showGuides = not locked or settingsOpen
+
+    for _, sec in ipairs(BM.SECTIONS) do
+        local f = sectionFrames[sec]
+        if f then
+            if not InCombatLockdown() then
+                f:SetMovable(not locked)
+                f:EnableMouse(not locked)
             end
-            y = y + h
-            visCount = visCount + 1
-        else
-            if containers[sec] then containers[sec]:Hide() end
-            if sec == "primary" and BM.primaryBar then BM.primaryBar:Hide() end
-            if sec == "secondary" and BM.secondaryContainer then BM.secondaryContainer:Hide() end
+            if f.label then
+                if showGuides and IsSectionEnabled(sec) then f.label:Show() else f.label:Hide() end
+            end
+            if f.bg then
+                if showGuides and IsSectionEnabled(sec) then f.bg:Show() else f.bg:Hide() end
+            end
         end
     end
-
-    if not db.locked then y = y + 14 end
-    BM.MainFrame:SetSize(w, math.max(y, 20))
 end
 
 ---------------------------------------------------------------------------
--- Reparent & resize Blizzard frames
+-- Refresh icon layout inside a section
 ---------------------------------------------------------------------------
 local function LayoutSection(section)
-    local container = EnsureContainer(section)
-    if not container then return end
+    local f = sectionFrames[section]
+    if not f then return end
     local iconSz = GetSectionIconSize(section)
     local spacing = BM.db.iconSpacing or 2
 
     if not IsSectionEnabled(section) then
-        container:Hide()
+        f:Hide()
         return
     end
 
@@ -189,14 +193,17 @@ local function LayoutSection(section)
         end)
     end
 
+    local totalW = #frames > 0 and (#frames * iconSz + (#frames - 1) * spacing) or iconSz
+    f:SetSize(totalW, iconSz)
+
     for idx, frame in ipairs(frames) do
-        frame:SetParent(container)
+        frame:SetParent(f)
         frame:ClearAllPoints()
         frame:SetSize(iconSz, iconSz)
-        frame:SetPoint("LEFT", container, "LEFT", (idx - 1) * (iconSz + spacing), 0)
+        frame:SetPoint("LEFT", f, "LEFT", (idx - 1) * (iconSz + spacing), 0)
     end
 
-    if #frames > 0 then container:Show() else container:Hide() end
+    if #frames > 0 or BM.settingsOpen then f:Show() else f:Hide() end
 end
 
 ---------------------------------------------------------------------------
@@ -207,10 +214,7 @@ local hookedMixins = false
 
 local function OnViewerChanged(vName)
     local section = VIEWER_TO_SECTION[vName]
-    if section then
-        LayoutSection(section)
-        BM.LayoutAll()
-    end
+    if section then LayoutSection(section) end
 end
 
 local function HookViewer(vName)
@@ -260,33 +264,40 @@ tickFrame:SetScript("OnUpdate", function(_, dt)
     timer = timer + dt
     if timer < 0.2 then return end
     timer = 0
-    if not BM.MainFrame or not BM.MainFrame:IsShown() then return end
-    for _, sec in ipairs(ALL_SECTIONS) do
+    for _, sec in ipairs(ICON_SECTIONS) do
         LayoutSection(sec)
     end
-    BM.LayoutAll()
 end)
 
 ---------------------------------------------------------------------------
--- Public API
+-- Public init
 ---------------------------------------------------------------------------
-function BM.SwapSectionOrder(key, dir)
-    local order = BM.db.layoutOrder
-    for i, k in ipairs(order) do
-        if k == key then
-            local t = i + dir
-            if t >= 1 and t <= #order then
-                order[i], order[t] = order[t], order[i]
-                BM.LayoutAll()
-            end
-            return
-        end
+function BM.InitViewerHooks()
+    -- Create frames for ALL sections (including primary/secondary for resource bars)
+    for _, sec in ipairs(BM.SECTIONS) do EnsureSectionFrame(sec) end
+    for _, vName in ipairs(ALL_VIEWER_NAMES) do HookViewer(vName) end
+    HookMixins()
+    BM.UpdateSectionLockState()
+end
+
+function BM.RefreshSectionScales()
+    local s = BM.db.scale or 1
+    for _, sec in ipairs(BM.SECTIONS) do
+        local f = sectionFrames[sec]
+        if f then f:SetScale(s) end
     end
 end
 
-function BM.InitViewerHooks()
-    for _, sec in ipairs(ALL_SECTIONS) do EnsureContainer(sec) end
-    for _, vName in ipairs(ALL_VIEWER_NAMES) do HookViewer(vName) end
-    HookMixins()
-    BM.LayoutAll()
+function BM.ResetAllPositions()
+    local defaults = BM.DefaultDB
+    for _, sec in ipairs(BM.SECTIONS) do
+        local key = GetPosKey(sec)
+        local def = defaults[key] or { x = 0, y = -200 }
+        BM.db[key] = { x = def.x, y = def.y }
+        local f = sectionFrames[sec]
+        if f then
+            f:ClearAllPoints()
+            f:SetPoint("CENTER", UIParent, "CENTER", def.x, def.y)
+        end
+    end
 end

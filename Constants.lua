@@ -1,7 +1,7 @@
 local addonName, BM = ...
 
 BM.ADDON_NAME = addonName
-BM.VERSION = "3.2.0"
+BM.VERSION = "4.0.0"
 
 BM.DRUID_CLASS_ID = 11
 
@@ -42,20 +42,6 @@ BM.Styles = {
         fontName    = "Fonts\\FRIZQT__.TTF",
         fontSize    = 12,
     },
-    ["dark"] = {
-        name        = "暗夜 / Dark Forest",
-        borderColor = { 0.15, 0.15, 0.15, 1.0 },
-        accentColor = { 0.7, 0.2, 0.8, 1.0 },
-        fontName    = "Fonts\\FRIZQT__.TTF",
-        fontSize    = 12,
-    },
-    ["nature"] = {
-        name        = "翡翠梦境 / Emerald Dream",
-        borderColor = { 0.2, 0.75, 0.2, 1.0 },
-        accentColor = { 0.3, 1.0, 0.4, 1.0 },
-        fontName    = "Fonts\\FRIZQT__.TTF",
-        fontSize    = 12,
-    },
 }
 
 BM.SECTIONS = { "buff", "secondary", "primary", "essential", "utility" }
@@ -69,23 +55,24 @@ BM.SECTION_LABELS = {
 
 BM.DefaultDB = {
     enabled         = true,
-    locked          = false,
+    locked          = true,
     style           = "default",
-    customBg        = nil,
     showBuff        = true,
     showEssential   = true,
     showUtility     = true,
     showPrimaryBar  = true,
     showSecondaryBar = true,
     scale           = 1.0,
-    mainFrameX      = 0,
-    mainFrameY      = -200,
     barWidth        = 260,
     barHeight       = 18,
     essentialSize   = 36,
     buffSize        = 30,
     utilitySize     = 26,
     iconSpacing     = 2,
-    sectionGap      = 1,
-    layoutOrder     = { "buff", "secondary", "primary", "essential", "utility" },
+    -- Per-section position (relative to CENTER of screen)
+    pos_essential   = { x = 0,   y = -220 },
+    pos_buff        = { x = 0,   y = -180 },
+    pos_utility     = { x = 0,   y = -290 },
+    pos_primary     = { x = 0,   y = -255 },
+    pos_secondary   = { x = 0,   y = -240 },
 }
