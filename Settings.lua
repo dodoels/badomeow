@@ -332,8 +332,14 @@ local function CreateOptionsPanel()
 
     Header("关于")
     InfoText("至暗.八方.豹读诗书.哈基米要你命三千八 v" .. FFS.VERSION .. " | MIT License")
+    InfoText("本插件由 BILIBILI@SOSO财高八抖 四处搜刮纯AI沥尽心血毫无原创打造而成")
     InfoText("基于暴雪 CooldownViewer 系统，自动同步所有职业/专精技能数据")
-    InfoText("灵感: Ayije_CDM, WeakAuras2, SenseiClassResourceBar")
+    Spacer(6)
+    InfoText("|cFFFFD100致谢 / Credits:|r")
+    InfoText("  Ayije_CDM — 作者: Ayije | CooldownViewer hook 核心参考")
+    InfoText("  WeakAuras2 — 作者: Buds, Infus, Rivers, Stanzilla 及社区 | GPL v2")
+    InfoText("  SenseiClassResourceBar — 作者: Snsei987 | MIT")
+    InfoText("  Arc UI — 作者: devdeadviz | 模块化 UI 设计参考")
 
     ---------------------------------------------------------------------------
     -- Show/hide preview when settings panel opens/closes
