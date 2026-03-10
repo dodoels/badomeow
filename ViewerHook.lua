@@ -85,10 +85,16 @@ local function MasqueSkinFrame(frame, section)
     masqueRegistered[frame] = true
     StripAllBlizzardDecor(frame, iconTex)
 
+    if not frame.__ffsNormal then
+        local normal = frame:CreateTexture(nil, "BORDER")
+        normal:SetAllPoints()
+        frame.__ffsNormal = normal
+    end
+
     local regions = {
         Icon = iconTex,
         Cooldown = frame.Cooldown or false,
-        Normal = false,
+        Normal = frame.__ffsNormal,
         Border = false,
         Count = frame.Count or false,
     }
