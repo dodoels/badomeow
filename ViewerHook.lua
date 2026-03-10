@@ -197,10 +197,15 @@ local function LayoutSection(section)
     f:SetSize(totalW, iconSz)
 
     for idx, frame in ipairs(frames) do
-        frame:SetParent(f)
+        -- Reparent to UIParent (not our container) to avoid disrupting
+        -- Blizzard's viewer layout calculations. Position relative to
+        -- our container frame so they move with it when dragged.
+        frame:SetParent(UIParent)
         frame:ClearAllPoints()
         frame:SetSize(iconSz, iconSz)
         frame:SetPoint("LEFT", f, "LEFT", (idx - 1) * (iconSz + spacing), 0)
+        frame:SetFrameStrata("MEDIUM")
+        frame:SetFrameLevel(f:GetFrameLevel() + 2)
     end
 
     if #frames > 0 or BM.settingsOpen then f:Show() else f:Hide() end
