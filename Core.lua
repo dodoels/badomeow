@@ -109,13 +109,16 @@ function BM.UpdateVisibility()
     end
 
     if MainFrame.title then
-        local specCN = BM.SpecNamesCN[currentSpecID] or ""
         if not BM.db.locked and isVisible then
-            MainFrame.title:SetText("豹集 · " .. specCN .. "  |cFFFFFF00[拖动移动 / 右键锁定]|r")
-        elseif isVisible then
-            MainFrame.title:SetText("豹集 · " .. specCN)
+            MainFrame.title:SetText("|cFFFFFF00[拖动 / 右键锁定]|r")
+            MainFrame.title:Show()
+        else
+            MainFrame.title:SetText("")
+            MainFrame.title:Hide()
         end
     end
+
+    if BM.LayoutAll then BM.LayoutAll() end
 end
 
 local function OnSpecChanged()
@@ -144,7 +147,7 @@ local function SetupMainFrame()
     BM.MainFrame = MainFrame
 
     local db = BM.db
-    MainFrame:SetSize(db.barWidth + 20, 80)
+    MainFrame:SetSize(db.barWidth, 60)
     MainFrame:SetPoint("CENTER", UIParent, "CENTER", db.mainFrameX, db.mainFrameY)
     MainFrame:SetScale(db.scale)
     MainFrame:SetFrameStrata("MEDIUM")
@@ -152,9 +155,10 @@ local function SetupMainFrame()
     MainFrame:SetClampedToScreen(true)
 
     MainFrame.title = MainFrame:CreateFontString(nil, "OVERLAY")
-    MainFrame.title:SetFont("Fonts\\FRIZQT__.TTF", 9, "OUTLINE")
-    MainFrame.title:SetPoint("TOP", MainFrame, "TOP", 0, -3)
-    MainFrame.title:SetTextColor(0.5, 0.8, 0.4, 0.6)
+    MainFrame.title:SetFont("Fonts\\FRIZQT__.TTF", 8, "OUTLINE")
+    MainFrame.title:SetPoint("TOP", MainFrame, "TOP", 0, 10)
+    MainFrame.title:SetTextColor(0.6, 0.8, 0.4, 0.5)
+    MainFrame.title:Hide()
 
     MainFrame:EnableMouse(not db.locked)
     MainFrame:SetMovable(not db.locked)
@@ -198,7 +202,6 @@ end
 function BM.RefreshAll()
     if not MainFrame then return end
     local db = BM.db
-    MainFrame:SetSize(db.barWidth + 20, 80)
     MainFrame:SetScale(db.scale)
     MainFrame:EnableMouse(not db.locked)
     MainFrame:SetMovable(not db.locked)

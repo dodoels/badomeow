@@ -2,34 +2,27 @@ local addonName, BM = ...
 
 --[[
     ViewerHook: Hooks Blizzard's 12.0 CooldownViewer system.
+    Mirrors spell icons from official viewers into our own compact layout.
 
-    Blizzard creates 4 global viewer frames:
-      EssentialCooldownViewer  - core rotational cooldowns
-      UtilityCooldownViewer    - utility cooldowns
-      BuffIconCooldownViewer   - active buff icons
-      BuffBarCooldownViewer    - active buffs as progress bars
-
-    We hook their item frame acquisition and layout methods to read
-    spell data directly from the game engine, then mirror the info
-    into our own styled display below the resource bar.
+    Layout (top to bottom, no gaps, no labels):
+      [Essential icons]  - core cooldowns, full barWidth, large icons
+      [Combo pips]       - secondary resource (if any)
+      [Resource bar]     - primary resource
+      [Utility icons]    - utility cooldowns, small icons
 ]]
 
 local VIEWERS = BM.VIEWERS
 
 local hookedViewers = {}
 local hookedMixins = {}
-local trackedFrames = {}
 local mirrorIcons = {}
 
--- One container per viewer type
-local viewerContainers = {}
+local essentialContainer
+local utilityContainer
 
-local VIEWER_LABELS = {
-    [VIEWERS.ESSENTIAL] = "核心技能",
-    [VIEWERS.UTILITY]   = "工具技能",
-    [VIEWERS.BUFF]      = "增益",
-    [VIEWERS.BUFF_BAR]  = "增益条",
-}
+local ESSENTIAL_ICON_SIZE = 30
+local UTILITY_ICON_SIZE = 22
+local ICON_PAD = 1
 
 local function GetSpellIDFromFrame(frame)
     if not frame then return nil end
@@ -42,101 +35,123 @@ local function GetSpellIDFromFrame(frame)
         local info = frame.cooldownInfo
         spellID = info.overrideSpellID or info.spellID
     end
-    if spellID and BM.IsSafeNumber and not BM.IsSafeNumber(spellID) then
-        return nil
-    end
-    if spellID and type(spellID) == "number" and issecurevariable and issecretvalue then
+    if spellID and type(spellID) == "number" then
         local ok, isSafe = pcall(function() return not issecretvalue(spellID) end)
         if ok and not isSafe then return nil end
     end
     return spellID
 end
 
-function BM.IsSafeNumber(value)
-    if value == nil or type(value) ~= "number" then return false end
-    local ok, result = pcall(function() return not issecretvalue(value) end)
-    if ok then return result end
-    return true
-end
-
-local function CreateMirrorIcon(parent, index)
-    local size = 32
+local function CreateMirrorIcon(parent, size)
     local f = CreateFrame("Frame", nil, parent)
     f:SetSize(size, size)
     f:SetFrameLevel(parent:GetFrameLevel() + 2)
 
     f.icon = f:CreateTexture(nil, "ARTWORK")
-    f.icon:SetPoint("TOPLEFT", 2, -2)
-    f.icon:SetPoint("BOTTOMRIGHT", -2, 2)
+    f.icon:SetPoint("TOPLEFT", ICON_PAD, -ICON_PAD)
+    f.icon:SetPoint("BOTTOMRIGHT", -ICON_PAD, ICON_PAD)
     f.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-
-    f.border = f:CreateTexture(nil, "OVERLAY")
-    f.border:SetAllPoints()
-    f.border:SetTexture("Interface\\Buttons\\UI-Quickslot-Depress")
-    f.border:SetVertexColor(0.4, 0.4, 0.4, 0.8)
 
     f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
     f.cd:SetAllPoints(f.icon)
     f.cd:SetDrawEdge(true)
     f.cd:SetHideCountdownNumbers(false)
 
-    f.duration = f:CreateFontString(nil, "OVERLAY")
-    f.duration:SetFont("Fonts\\FRIZQT__.TTF", 9, "OUTLINE")
-    f.duration:SetPoint("TOP", f, "BOTTOM", 0, -1)
-    f.duration:SetTextColor(1, 0.9, 0.5, 1)
-
     f:Hide()
     return f
 end
 
-local function EnsureContainer(viewerName)
-    if viewerContainers[viewerName] then return viewerContainers[viewerName] end
-    if not BM.MainFrame then return nil end
+local function EnsureContainers()
+    if essentialContainer and utilityContainer then return end
+    if not BM.MainFrame then return end
 
-    local container = CreateFrame("Frame", nil, BM.MainFrame)
-    container:SetSize(BM.db.barWidth, 36)
-    container:SetFrameLevel(BM.MainFrame:GetFrameLevel() + 1)
+    local db = BM.db
 
-    container.label = container:CreateFontString(nil, "OVERLAY")
-    container.label:SetFont("Fonts\\FRIZQT__.TTF", 8, "OUTLINE")
-    container.label:SetPoint("BOTTOMLEFT", container, "TOPLEFT", 0, 2)
-    container.label:SetTextColor(0.6, 0.8, 0.6, 0.6)
-    container.label:SetText(VIEWER_LABELS[viewerName] or viewerName)
+    if not essentialContainer then
+        essentialContainer = CreateFrame("Frame", nil, BM.MainFrame)
+        essentialContainer:SetSize(db.barWidth, ESSENTIAL_ICON_SIZE)
+        essentialContainer:SetFrameLevel(BM.MainFrame:GetFrameLevel() + 1)
+    end
 
-    viewerContainers[viewerName] = container
-    return container
+    if not utilityContainer then
+        utilityContainer = CreateFrame("Frame", nil, BM.MainFrame)
+        utilityContainer:SetSize(db.barWidth, UTILITY_ICON_SIZE)
+        utilityContainer:SetFrameLevel(BM.MainFrame:GetFrameLevel() + 1)
+    end
 end
 
-local function LayoutContainers()
+-- Core layout: position everything tightly
+function BM.LayoutAll()
     if not BM.MainFrame then return end
+    EnsureContainers()
     local db = BM.db
-    local y = 20
-    local order = { VIEWERS.ESSENTIAL, VIEWERS.UTILITY, VIEWERS.BUFF }
+    local w = db.barWidth
 
-    for _, vName in ipairs(order) do
-        local container = viewerContainers[vName]
-        if container then
-            container:ClearAllPoints()
-            container:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 10, y)
-            container:SetSize(db.barWidth, 36)
+    -- Build from bottom up
+    local y = 0
 
-            local iconCount = 0
-            local icons = mirrorIcons[vName]
-            if icons then
-                for _, ic in ipairs(icons) do
-                    if ic:IsShown() then iconCount = iconCount + 1 end
-                end
+    -- Utility row (bottom)
+    if utilityContainer then
+        local hasIcons = false
+        local icons = mirrorIcons[VIEWERS.UTILITY]
+        if icons then
+            for _, ic in ipairs(icons) do
+                if ic:IsShown() then hasIcons = true; break end
             end
-
-            if iconCount > 0 then
-                y = y + 50
-            else
-                container:Hide()
-            end
+        end
+        if hasIcons then
+            utilityContainer:ClearAllPoints()
+            utilityContainer:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
+            utilityContainer:SetSize(w, UTILITY_ICON_SIZE)
+            utilityContainer:Show()
+            y = y + UTILITY_ICON_SIZE
+        else
+            utilityContainer:Hide()
         end
     end
 
-    BM.MainFrame:SetHeight(y + 15)
+    -- Primary resource bar
+    if BM.primaryBar then
+        BM.primaryBar:ClearAllPoints()
+        BM.primaryBar:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
+        BM.primaryBar:SetSize(w, db.barHeight)
+        y = y + db.barHeight
+    end
+
+    -- Secondary pips (combo points)
+    if BM.secondaryContainer then
+        BM.secondaryContainer:ClearAllPoints()
+        BM.secondaryContainer:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
+        BM.secondaryContainer:SetSize(w, 10)
+        y = y + 10
+    end
+
+    -- Essential row (top)
+    if essentialContainer then
+        local hasIcons = false
+        local icons = mirrorIcons[VIEWERS.ESSENTIAL]
+        if icons then
+            for _, ic in ipairs(icons) do
+                if ic:IsShown() then hasIcons = true; break end
+            end
+        end
+        if hasIcons then
+            essentialContainer:ClearAllPoints()
+            essentialContainer:SetPoint("BOTTOMLEFT", BM.MainFrame, "BOTTOMLEFT", 0, y)
+            essentialContainer:SetSize(w, ESSENTIAL_ICON_SIZE)
+            essentialContainer:Show()
+            y = y + ESSENTIAL_ICON_SIZE
+        else
+            essentialContainer:Hide()
+        end
+    end
+
+    -- Title bar space (only when unlocked)
+    if not db.locked then
+        y = y + 14
+    end
+
+    BM.MainFrame:SetSize(w, math.max(y, 20))
 end
 
 local function FormatTime(sec)
@@ -147,21 +162,22 @@ end
 
 local function RefreshViewerMirror(viewerName)
     local viewer = _G[viewerName]
-    if not viewer then return end
-    if not viewer.itemFramePool then return end
+    if not viewer or not viewer.itemFramePool then return end
 
-    local container = EnsureContainer(viewerName)
+    EnsureContainers()
+    local isEssential = (viewerName == VIEWERS.ESSENTIAL)
+    local container = isEssential and essentialContainer or utilityContainer
     if not container then return end
+
+    local size = isEssential and ESSENTIAL_ICON_SIZE or UTILITY_ICON_SIZE
 
     if not mirrorIcons[viewerName] then mirrorIcons[viewerName] = {} end
     local icons = mirrorIcons[viewerName]
 
-    -- Hide all first
     for _, ic in ipairs(icons) do ic:Hide() end
 
     local idx = 0
-    local spacing = 4
-    local size = 32
+    local spacing = isEssential and 2 or 1
     local now = GetTime()
 
     for frame in viewer.itemFramePool:EnumerateActive() do
@@ -171,9 +187,10 @@ local function RefreshViewerMirror(viewerName)
                 idx = idx + 1
                 local ic = icons[idx]
                 if not ic then
-                    ic = CreateMirrorIcon(container, idx)
+                    ic = CreateMirrorIcon(container, size)
                     icons[idx] = ic
                 end
+                ic:SetSize(size, size)
 
                 local tex = C_Spell.GetSpellTexture(spellID)
                 if tex then ic.icon:SetTexture(tex) end
@@ -181,7 +198,6 @@ local function RefreshViewerMirror(viewerName)
                 ic:ClearAllPoints()
                 ic:SetPoint("LEFT", container, "LEFT", (idx - 1) * (size + spacing), 0)
 
-                -- Mirror cooldown state from original frame
                 if frame.Cooldown then
                     local cdStart, cdDuration = frame.Cooldown:GetCooldownTimes()
                     if cdStart and cdDuration then
@@ -189,12 +205,9 @@ local function RefreshViewerMirror(viewerName)
                         cdDuration = cdDuration / 1000
                         if cdDuration > 1.5 then
                             ic.cd:SetCooldown(cdStart, cdDuration)
-                            local rem = (cdStart + cdDuration) - now
-                            ic.duration:SetText(rem > 0 and FormatTime(rem) or "")
                             ic.icon:SetDesaturated(true)
                         else
                             ic.cd:Clear()
-                            ic.duration:SetText("")
                             ic.icon:SetDesaturated(false)
                         end
                     end
@@ -206,7 +219,7 @@ local function RefreshViewerMirror(viewerName)
     end
 
     container:Show()
-    LayoutContainers()
+    BM.LayoutAll()
 end
 
 local function HookViewer(viewerName)
@@ -215,75 +228,44 @@ local function HookViewer(viewerName)
     if hookedViewers[viewer] then return end
     hookedViewers[viewer] = true
 
-    -- Hook layout methods
-    if viewer.RefreshData then
-        hooksecurefunc(viewer, "RefreshData", function()
-            RefreshViewerMirror(viewerName)
-        end)
-    end
+    local function OnChange() RefreshViewerMirror(viewerName) end
+
+    if viewer.RefreshData then hooksecurefunc(viewer, "RefreshData", OnChange) end
     if viewer.UpdateLayout then
-        hooksecurefunc(viewer, "UpdateLayout", function()
-            RefreshViewerMirror(viewerName)
-        end)
+        hooksecurefunc(viewer, "UpdateLayout", OnChange)
     elseif viewer.Layout then
-        hooksecurefunc(viewer, "Layout", function()
-            RefreshViewerMirror(viewerName)
-        end)
+        hooksecurefunc(viewer, "Layout", OnChange)
     end
-    if viewer.RefreshLayout then
-        hooksecurefunc(viewer, "RefreshLayout", function()
-            RefreshViewerMirror(viewerName)
-        end)
-    end
+    if viewer.RefreshLayout then hooksecurefunc(viewer, "RefreshLayout", OnChange) end
 
-    -- Hook pool acquire/release
     if viewer.itemFramePool then
-        hooksecurefunc(viewer.itemFramePool, "Acquire", function()
-            RefreshViewerMirror(viewerName)
-        end)
-        hooksecurefunc(viewer.itemFramePool, "Release", function()
-            RefreshViewerMirror(viewerName)
-        end)
+        hooksecurefunc(viewer.itemFramePool, "Acquire", OnChange)
+        hooksecurefunc(viewer.itemFramePool, "Release", OnChange)
     end
 
-    viewer:HookScript("OnShow", function()
-        RefreshViewerMirror(viewerName)
-    end)
-
+    viewer:HookScript("OnShow", OnChange)
     RefreshViewerMirror(viewerName)
 end
 
--- Hook the mixin methods (fires when Blizzard assigns a spell to a frame)
 local function HookMixins()
     if hookedMixins.done then return end
 
-    local mixinNames = {
-        "CooldownViewerEssentialItemMixin",
-        "CooldownViewerUtilityItemMixin",
-        "CooldownViewerBuffIconItemMixin",
-        "CooldownViewerBuffBarItemMixin",
-    }
-
-    local viewerMap = {
+    local map = {
         CooldownViewerEssentialItemMixin = VIEWERS.ESSENTIAL,
         CooldownViewerUtilityItemMixin   = VIEWERS.UTILITY,
-        CooldownViewerBuffIconItemMixin  = VIEWERS.BUFF,
-        CooldownViewerBuffBarItemMixin   = VIEWERS.BUFF_BAR,
     }
 
-    for _, mixinName in ipairs(mixinNames) do
+    for mixinName, vName in pairs(map) do
         local mixin = _G[mixinName]
         if mixin then
             if mixin.OnCooldownIDSet then
                 hooksecurefunc(mixin, "OnCooldownIDSet", function()
-                    local vName = viewerMap[mixinName]
-                    if vName then RefreshViewerMirror(vName) end
+                    RefreshViewerMirror(vName)
                 end)
             end
             if mixin.OnActiveStateChanged then
                 hooksecurefunc(mixin, "OnActiveStateChanged", function()
-                    local vName = viewerMap[mixinName]
-                    if vName then RefreshViewerMirror(vName) end
+                    RefreshViewerMirror(vName)
                 end)
             end
         end
@@ -292,7 +274,6 @@ local function HookMixins()
     hookedMixins.done = true
 end
 
--- Periodic refresh for cooldown timers
 local refreshTimer = 0
 local refreshFrame = CreateFrame("Frame")
 refreshFrame:SetScript("OnUpdate", function(self, elapsed)
@@ -301,7 +282,7 @@ refreshFrame:SetScript("OnUpdate", function(self, elapsed)
     refreshTimer = 0
     if not BM.MainFrame or not BM.MainFrame:IsShown() then return end
 
-    for _, vName in ipairs({ VIEWERS.ESSENTIAL, VIEWERS.UTILITY, VIEWERS.BUFF }) do
+    for _, vName in ipairs({ VIEWERS.ESSENTIAL, VIEWERS.UTILITY }) do
         if _G[vName] then
             RefreshViewerMirror(vName)
         end
@@ -309,10 +290,9 @@ refreshFrame:SetScript("OnUpdate", function(self, elapsed)
 end)
 
 function BM.InitViewerHooks()
-    local viewerOrder = { VIEWERS.ESSENTIAL, VIEWERS.UTILITY, VIEWERS.BUFF }
-    for _, vName in ipairs(viewerOrder) do
+    for _, vName in ipairs({ VIEWERS.ESSENTIAL, VIEWERS.UTILITY }) do
         HookViewer(vName)
     end
     HookMixins()
-    LayoutContainers()
+    BM.LayoutAll()
 end

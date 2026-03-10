@@ -1,6 +1,6 @@
 local addonName, BM = ...
 
-local primaryBar, primaryText, primaryLabel
+local primaryBar, primaryText
 local secondaryContainer
 local secondaryPips = {}
 local MAX_PIPS = 5
@@ -12,9 +12,10 @@ local function DestroyBars()
     for _, pip in ipairs(secondaryPips) do pip:Hide(); pip:SetParent(nil) end
     primaryBar = nil
     primaryText = nil
-    primaryLabel = nil
     secondaryContainer = nil
     secondaryPips = {}
+    BM.primaryBar = nil
+    BM.secondaryContainer = nil
 end
 
 local function CreatePrimaryBar(resData)
@@ -23,7 +24,6 @@ local function CreatePrimaryBar(resData)
 
     primaryBar = CreateFrame("StatusBar", "badomeowPrimaryBar", BM.MainFrame)
     primaryBar:SetSize(db.barWidth, db.barHeight)
-    primaryBar:SetPoint("BOTTOM", BM.MainFrame, "BOTTOM", 0, 6)
     primaryBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
     primaryBar:SetFrameLevel(BM.MainFrame:GetFrameLevel() + 2)
 
@@ -44,26 +44,12 @@ local function CreatePrimaryBar(resData)
     bg:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
     bg:SetVertexColor(0.08, 0.08, 0.08, 0.6)
 
-    local border = CreateFrame("Frame", nil, primaryBar, "BackdropTemplate")
-    border:SetPoint("TOPLEFT", -1, 1)
-    border:SetPoint("BOTTOMRIGHT", 1, -1)
-    border:SetBackdrop({
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        edgeSize = 6,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
-    })
-    border:SetBackdropBorderColor(0.2, 0.2, 0.2, 0.4)
-
     primaryText = primaryBar:CreateFontString(nil, "OVERLAY")
     primaryText:SetFont(style.fontName, style.fontSize, "OUTLINE")
     primaryText:SetPoint("CENTER")
     primaryText:SetTextColor(1, 1, 1, 1)
 
-    primaryLabel = primaryBar:CreateFontString(nil, "OVERLAY")
-    primaryLabel:SetFont(style.fontName, 9, "OUTLINE")
-    primaryLabel:SetPoint("LEFT", primaryBar, "LEFT", 4, 0)
-    primaryLabel:SetTextColor(0.7, 0.7, 0.7, 0.4)
-    primaryLabel:SetText(resData.powerLabel or "")
+    BM.primaryBar = primaryBar
 end
 
 local function CreateSecondaryPips(resData)
@@ -72,34 +58,31 @@ local function CreateSecondaryPips(resData)
     local maxPips = resData.maxSecondary or MAX_PIPS
 
     secondaryContainer = CreateFrame("Frame", "badomeowSecondaryBar", BM.MainFrame)
-    secondaryContainer:SetSize(db.barWidth, 12)
-    secondaryContainer:SetPoint("BOTTOM", primaryBar, "TOP", 0, 3)
+    secondaryContainer:SetSize(db.barWidth, 10)
     secondaryContainer:SetFrameLevel(BM.MainFrame:GetFrameLevel() + 2)
 
-    local gap = 2
+    local gap = 1
     local pipWidth = (db.barWidth - (maxPips - 1) * gap) / maxPips
 
     for i = 1, maxPips do
         local pip = CreateFrame("Frame", nil, secondaryContainer, "BackdropTemplate")
-        pip:SetSize(pipWidth, 10)
+        pip:SetSize(pipWidth, 8)
         pip:SetPoint("LEFT", secondaryContainer, "LEFT", (i - 1) * (pipWidth + gap), 0)
         pip:SetBackdrop({
             bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-            tile = true, tileSize = 8, edgeSize = 4,
-            insets = { left = 1, right = 1, top = 1, bottom = 1 },
+            tile = true, tileSize = 8,
         })
-        pip:SetBackdropColor(0.08, 0.08, 0.08, 0.5)
-        pip:SetBackdropBorderColor(0.2, 0.2, 0.2, 0.3)
+        pip:SetBackdropColor(0.1, 0.1, 0.1, 0.7)
 
         pip.fill = pip:CreateTexture(nil, "ARTWORK")
-        pip.fill:SetPoint("TOPLEFT", 2, -2)
-        pip.fill:SetPoint("BOTTOMRIGHT", -2, 2)
+        pip.fill:SetAllPoints()
         pip.fill:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
         pip.fill:Hide()
 
         secondaryPips[i] = pip
     end
+
+    BM.secondaryContainer = secondaryContainer
 end
 
 local function UpdatePrimary()
@@ -120,7 +103,6 @@ local function UpdatePrimary()
     else
         primaryText:SetText(current .. " / " .. maximum)
     end
-    primaryLabel:SetText(resData.powerLabel or "")
 end
 
 local lastSecondary = 0
@@ -141,18 +123,15 @@ local function UpdateSecondary()
             local color = BM.ComboPipColors[i] or { 1, 0.5, 0 }
             pip.fill:SetVertexColor(color[1], color[2], color[3], 1)
             pip.fill:Show()
-            pip:SetBackdropBorderColor(color[1], color[2], color[3], 0.7)
         else
             pip.fill:Hide()
-            pip:SetBackdropColor(0.08, 0.08, 0.08, 0.5)
-            pip:SetBackdropBorderColor(0.2, 0.2, 0.2, 0.3)
         end
     end
 
     if current >= maximum and lastSecondary < maximum then
         for i = 1, maximum do
-            if secondaryPips[i] then
-                secondaryPips[i]:SetBackdropBorderColor(1, 1, 1, 1)
+            if secondaryPips[i] and secondaryPips[i].fill then
+                secondaryPips[i].fill:SetVertexColor(1, 1, 1, 1)
             end
         end
     end
@@ -167,6 +146,7 @@ function BM.RebuildResourceBars()
     CreateSecondaryPips(resData)
     UpdatePrimary()
     UpdateSecondary()
+    if BM.LayoutAll then BM.LayoutAll() end
 end
 
 function BM.InitResourceBars()
