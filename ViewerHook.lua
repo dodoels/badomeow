@@ -270,25 +270,21 @@ local function RefreshSection(section)
         ic:ClearAllPoints()
         ic:SetPoint("LEFT", container, "LEFT", (idx-1) * (size + spacing), 0)
 
-        -- cooldown mirror via C_Spell API (GetCooldownTimes returns secret values in 12.0)
-        local okCD, cdInfo = pcall(C_Spell.GetSpellCooldown, src.id)
-        if not okCD then cdInfo = nil end
-        if cdInfo and cdInfo.duration and cdInfo.duration > 0 then
-            if isBuff then
-                ic.cd:SetCooldown(cdInfo.startTime, cdInfo.duration)
-            else
-                if cdInfo.duration > 1.5 then
-                    ic.cd:SetCooldown(cdInfo.startTime, cdInfo.duration)
-                    ic.icon:SetDesaturated(true)
-                else
-                    ic.cd:Clear()
-                    ic.icon:SetDesaturated(false)
-                end
+        -- All cooldown numbers are secret in 12.0 — cannot read, compare,
+        -- or do arithmetic on them. We detect on-cooldown purely by checking
+        -- if the source Cooldown frame is visually spinning (shown + alpha>0).
+        -- We show a simple desaturated overlay instead of a sweep animation.
+        local srcCD = src.f.Cooldown or src.f.cooldown
+        local onCD = false
+        if srcCD then
+            local ok, shown = pcall(srcCD.IsShown, srcCD)
+            if ok and shown then
+                local ok2, alpha = pcall(srcCD.GetAlpha, srcCD)
+                onCD = ok2 and alpha > 0.01
             end
-        else
-            ic.cd:Clear()
-            if not isBuff then ic.icon:SetDesaturated(false) end
         end
+        ic.cd:Hide()
+        if not isBuff then ic.icon:SetDesaturated(onCD) end
 
         -- buff glow
         if isBuff then
