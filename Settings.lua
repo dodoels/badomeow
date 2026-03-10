@@ -143,7 +143,9 @@ local function CreateOptionsPanel()
             if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
         end)
     end
-    InfoText("解锁后左键拖动单个组件，Shift+拖动=整体移动所有组件。右键任意组件=快速锁定/解锁。")
+    Checkbox("全局移动 (拖一个=拖全部)", "globalMove")
+    InfoText("开启后拖动任意组件，所有组件一起移动。关闭则各自独立移动（Shift+拖仍可整体移动）。")
+    InfoText("右键任意已解锁组件 = 快速锁定/解锁。")
     Slider("整体缩放", "scale", 0.5, 2.0, 0.1, "%.1f")
 
     Divider()
@@ -240,8 +242,8 @@ local function CreateOptionsPanel()
     InfoText("别名: /badomeow, /bado（与 /bdm 功能相同）")
     Spacer(4)
     InfoText("解锁后操作:")
-    InfoText("  左键拖动 — 移动单个组件")
-    InfoText("  Shift + 左键拖动 — 整体移动所有组件")
+    InfoText("  左键拖动 — 移动单个组件（全局移动开启时移动全部）")
+    InfoText("  Shift + 左键拖动 — 强制整体移动所有组件")
     InfoText("  右键点击任意组件 — 快速切换锁定/解锁")
 
     Divider()

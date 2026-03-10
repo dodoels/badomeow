@@ -57,6 +57,7 @@ BM.SECTION_LABELS = {
 BM.DefaultDB = {
     enabled         = true,
     locked          = true,
+    globalMove      = false,
     style           = "default",
     showBuff        = true,
     showEssential   = true,

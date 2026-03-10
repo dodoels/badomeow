@@ -94,8 +94,8 @@ local function MakeDraggable(frame, section)
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
         local _, _, _, ex, ey = self:GetPoint()
-        -- Shift held = move all sections by the same delta
-        if IsShiftKeyDown() and self._dragStartX and self._dragStartY then
+        local moveAll = IsShiftKeyDown() or BM.db.globalMove
+        if moveAll and self._dragStartX and self._dragStartY then
             local dx = ex - self._dragStartX
             local dy = ey - self._dragStartY
             for _, sec in ipairs(BM.SECTIONS) do
@@ -240,7 +240,17 @@ local function LayoutSection(section)
         frame:SetFrameLevel(f:GetFrameLevel() + 2)
     end
 
-    if #frames > 0 or BM.settingsOpen then f:Show() else f:Hide() end
+    local unlocked = not BM.db.locked
+    local previewMode = unlocked or BM.settingsOpen
+    if #frames > 0 then
+        f:Show()
+    elseif previewMode and IsSectionEnabled(section) then
+        local minW = GetSectionIconSize(section) * 3 + spacing * 2
+        f:SetSize(minW, GetSectionIconSize(section))
+        f:Show()
+    else
+        f:Hide()
+    end
 end
 
 ---------------------------------------------------------------------------
