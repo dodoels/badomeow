@@ -77,14 +77,17 @@ local function SaveSectionPos(section)
 end
 
 -- After StopMovingOrSizing, WoW changes the anchor arbitrarily.
--- Use GetCenter() (always returns correct screen coords) to compute
--- CENTER-relative offset, following the Ayije_CDM pattern.
+-- Use GetCenter() to get screen coords, then convert to CENTER offset.
+-- GetCenter() returns coords in the parent's coordinate space, but
+-- SetPoint offsets are in the frame's own scaled space, so we must
+-- divide by the frame's scale factor.
 local function NormalizeToCenterOffset(frame)
     local cx, cy = frame:GetCenter()
     local pcx, pcy = UIParent:GetCenter()
     if not cx or not pcx then return 0, 0 end
-    local offX = cx - pcx
-    local offY = cy - pcy
+    local s = frame:GetScale()
+    local offX = (cx - pcx) / s
+    local offY = (cy - pcy) / s
     frame:ClearAllPoints()
     frame:SetPoint("CENTER", UIParent, "CENTER", offX, offY)
     return offX, offY
