@@ -266,6 +266,7 @@ function FFS.UpdateSectionLockState()
             end
         end
     end
+    if FFS.UpdateOverlayLockState then FFS.UpdateOverlayLockState() end
 end
 
 ---------------------------------------------------------------------------
