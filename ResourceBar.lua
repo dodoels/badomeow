@@ -152,6 +152,26 @@ local function CreateManaBar()
 end
 
 ---------------------------------------------------------------------------
+-- Safe number helpers — UnitPower/UnitPowerMax can return secret values
+---------------------------------------------------------------------------
+local function IsSafe(v)
+    if v == nil then return false end
+    if issecretvalue and issecretvalue(v) then return false end
+    local ok, _ = pcall(tostring, v)
+    return ok
+end
+
+local function SafeFormatPower(current, maximum, asMana)
+    if not IsSafe(current) or not IsSafe(maximum) then return "" end
+    if maximum <= 0 then maximum = 1 end
+    if asMana then
+        return string.format("%.0f%%", current / maximum * 100)
+    else
+        return current .. " / " .. maximum
+    end
+end
+
+---------------------------------------------------------------------------
 -- Update functions
 ---------------------------------------------------------------------------
 local function UpdatePrimary()
@@ -161,15 +181,19 @@ local function UpdatePrimary()
 
     local current = UnitPower("player", resData.powerType)
     local maximum = UnitPowerMax("player", resData.powerType)
-    if maximum <= 0 then maximum = 1 end
-    primaryBar:SetMinMaxValues(0, maximum)
-    primaryBar:SetValue(current)
 
-    if resData.powerType == Enum.PowerType.Mana then
-        primaryText:SetText(string.format("%.0f%%", current / maximum * 100))
-    else
-        primaryText:SetText(current .. " / " .. maximum)
+    -- SetMinMaxValues / SetValue accept secret values without error
+    local ok1 = pcall(function()
+        if maximum <= 0 then maximum = 1 end
+        primaryBar:SetMinMaxValues(0, maximum)
+    end)
+    if not ok1 then
+        primaryBar:SetMinMaxValues(0, 1)
     end
+    pcall(function() primaryBar:SetValue(current) end)
+
+    local isMana = resData.powerType == Enum.PowerType.Mana
+    primaryText:SetText(SafeFormatPower(current, maximum, isMana))
 end
 
 local lastSecondary = 0
@@ -180,6 +204,8 @@ local function UpdateSecondary()
 
     local current = UnitPower("player", resData.secondaryPower)
     local maximum = resData.maxSecondary or MAX_PIPS
+
+    if not IsSafe(current) then return end
 
     for i = 1, maximum do
         local pip = secondaryPips[i]
@@ -207,10 +233,17 @@ local function UpdateMana()
     if not manaBar then return end
     local current = UnitPower("player", Enum.PowerType.Mana)
     local maximum = UnitPowerMax("player", Enum.PowerType.Mana)
-    if maximum <= 0 then maximum = 1 end
-    manaBar:SetMinMaxValues(0, maximum)
-    manaBar:SetValue(current)
-    manaText:SetText(string.format("%.0f%%", current / maximum * 100))
+
+    local ok1 = pcall(function()
+        if maximum <= 0 then maximum = 1 end
+        manaBar:SetMinMaxValues(0, maximum)
+    end)
+    if not ok1 then
+        manaBar:SetMinMaxValues(0, 1)
+    end
+    pcall(function() manaBar:SetValue(current) end)
+
+    manaText:SetText(SafeFormatPower(current, maximum, true))
 end
 
 ---------------------------------------------------------------------------
