@@ -124,6 +124,26 @@ local function CreateOptionsPanel()
     ---------------------------------------------------------------------------
     Header("常规设置")
     Checkbox("启用插件", "enabled")
+    do
+        local y = NextY(28)
+        local cb = CreateFrame("CheckButton", "badomeowCB_locked", content, "UICheckButtonTemplate")
+        cb:SetPoint("TOPLEFT", content, "TOPLEFT", 10, y)
+        cb:SetSize(26, 26)
+        local text = cb:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        text:SetPoint("LEFT", cb, "RIGHT", 4, 0)
+        text:SetText("锁定所有组件")
+        cb:SetChecked(BM.db.locked)
+        cb:SetScript("OnClick", function(self)
+            if InCombatLockdown() then
+                print("|cFFFF5555badomeow:|r 战斗中无法切换锁定")
+                self:SetChecked(BM.db.locked)
+                return
+            end
+            BM.db.locked = self:GetChecked() and true or false
+            if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
+        end)
+    end
+    InfoText("解锁后左键拖动单个组件，Shift+拖动=整体移动所有组件。右键任意组件=快速锁定/解锁。")
     Slider("整体缩放", "scale", 0.5, 2.0, 0.1, "%.1f")
 
     Divider()
@@ -169,17 +189,24 @@ local function CreateOptionsPanel()
     ---------------------------------------------------------------------------
     Header("操作")
 
+    local function SyncLockedCheckbox()
+        local cb = _G["badomeowCB_locked"]
+        if cb then cb:SetChecked(BM.db.locked) end
+    end
+
     Button("解锁所有组件 (拖动定位)", function()
         if InCombatLockdown() then
             print("|cFFFF5555badomeow:|r 战斗中无法解锁"); return
         end
         BM.db.locked = false
+        SyncLockedCheckbox()
         if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
-        print("|cFF00FF00badomeow:|r 已解锁，拖动各组件到想要的位置")
+        print("|cFF00FF00badomeow:|r 已解锁，拖动各组件到想要的位置。Shift+拖动=整体移动。右键=快速锁定/解锁。")
     end)
 
     Button("锁定所有组件", function()
         BM.db.locked = true
+        SyncLockedCheckbox()
         if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
         print("|cFF00FF00badomeow:|r 已锁定")
     end)

@@ -79,14 +79,45 @@ local function MakeDraggable(frame, section)
     frame:SetMovable(true)
     frame:EnableMouse(true)
     frame:RegisterForDrag("LeftButton")
+    frame._dragStartX = nil
+    frame._dragStartY = nil
     frame:SetScript("OnDragStart", function(self)
         if not BM.db.locked and not InCombatLockdown() then
+            -- Record start position for shift-drag (move all)
+            local _, _, _, sx, sy = self:GetPoint()
+            self._dragStartX = sx
+            self._dragStartY = sy
             self:StartMoving()
         end
     end)
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
+        local _, _, _, ex, ey = self:GetPoint()
+        -- Shift held = move all sections by the same delta
+        if IsShiftKeyDown() and self._dragStartX and self._dragStartY then
+            local dx = ex - self._dragStartX
+            local dy = ey - self._dragStartY
+            for _, sec in ipairs(BM.SECTIONS) do
+                local sf = sectionFrames[sec]
+                if sf and sf ~= self then
+                    local _, _, _, ox, oy = sf:GetPoint()
+                    sf:ClearAllPoints()
+                    sf:SetPoint("CENTER", UIParent, "CENTER", ox + dx, oy + dy)
+                    SaveSectionPos(sec)
+                end
+            end
+        end
         SaveSectionPos(section)
+        self._dragStartX = nil
+        self._dragStartY = nil
+    end)
+    frame:SetScript("OnMouseUp", function(self, button)
+        if button == "RightButton" and not InCombatLockdown() then
+            BM.db.locked = not BM.db.locked
+            if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
+            local msg = BM.db.locked and "已锁定" or "已解锁"
+            print("|cFF00FF00badomeow:|r " .. msg)
+        end
     end)
 end
 
