@@ -1,7 +1,7 @@
 local addonName, BM = ...
 
 BM.ADDON_NAME = addonName
-BM.VERSION = "2.0.0"
+BM.VERSION = "2.1.0"
 
 BM.DRUID_CLASS_ID = 11
 

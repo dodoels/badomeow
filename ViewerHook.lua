@@ -11,6 +11,7 @@ local addonName, BM = ...
       [Utility]    utility cooldowns, small icons
 
     Each section can be toggled on/off and reordered via layoutOrder.
+    Supports Masque skinning for all icon buttons.
 ]]
 
 local VIEWERS = BM.VIEWERS
@@ -28,7 +29,7 @@ local SECTION_SIZES = {
     essential = 30,
     utility   = 22,
     secondary = 10,
-    primary   = nil, -- uses db.barHeight
+    primary   = nil,
 }
 
 local ICON_PAD = 1
@@ -38,6 +39,27 @@ local SECTION_VIEWER_MAP = {
     essential = VIEWERS.ESSENTIAL,
     utility   = VIEWERS.UTILITY,
 }
+
+-- Masque integration
+local MSQ = LibStub and LibStub("Masque", true) or nil
+local masqueGroups = {}
+local iconCounter = 0
+
+local function GetMasqueGroup(section)
+    if not MSQ then return nil end
+    if masqueGroups[section] then return masqueGroups[section] end
+
+    local groupNames = {
+        essential = "核心技能 Essential",
+        buff      = "增益/触发 Buff",
+        utility   = "工具技能 Utility",
+    }
+    local name = groupNames[section]
+    if not name then return nil end
+
+    masqueGroups[section] = MSQ:Group("badomeow", name)
+    return masqueGroups[section]
+end
 
 local function GetSpellIDFromFrame(frame)
     if not frame then return nil end
@@ -67,8 +89,11 @@ local function IsFrameActive(frame)
     return frame:IsShown()
 end
 
-local function CreateMirrorIcon(parent, size)
-    local f = CreateFrame("Frame", nil, parent)
+local function CreateMirrorIcon(parent, size, section)
+    iconCounter = iconCounter + 1
+    local btnName = "badomeowIcon" .. iconCounter
+
+    local f = CreateFrame("Button", btnName, parent)
     f:SetSize(size, size)
     f:SetFrameLevel(parent:GetFrameLevel() + 2)
 
@@ -77,10 +102,19 @@ local function CreateMirrorIcon(parent, size)
     f.icon:SetPoint("BOTTOMRIGHT", -ICON_PAD, ICON_PAD)
     f.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
-    f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
-    f.cd:SetAllPoints(f.icon)
-    f.cd:SetDrawEdge(true)
-    f.cd:SetHideCountdownNumbers(false)
+    f.cooldown = CreateFrame("Cooldown", btnName .. "Cooldown", f, "CooldownFrameTemplate")
+    f.cooldown:SetAllPoints(f.icon)
+    f.cooldown:SetDrawEdge(true)
+    f.cooldown:SetHideCountdownNumbers(false)
+    -- Keep legacy .cd alias for backward compat in this file
+    f.cd = f.cooldown
+
+    local normalTex = f:CreateTexture(nil, "BORDER")
+    normalTex:SetAllPoints()
+    normalTex:SetTexture("Interface\\Buttons\\UI-Quickslot2")
+    normalTex:SetTexCoord(0, 1, 0, 1)
+    f:SetNormalTexture(normalTex)
+    f.NormalTexture = normalTex
 
     f.glow = f:CreateTexture(nil, "OVERLAY", nil, 2)
     f.glow:SetPoint("TOPLEFT", -4, 4)
@@ -97,6 +131,30 @@ local function CreateMirrorIcon(parent, size)
     pulse:SetToAlpha(1.0)
     pulse:SetDuration(0.6)
     pulse:SetSmoothing("IN_OUT")
+
+    -- Register with Masque
+    local group = GetMasqueGroup(section)
+    if group then
+        group:AddButton(f, {
+            Icon         = f.icon,
+            Cooldown     = f.cooldown,
+            Normal       = f.NormalTexture,
+            Border       = false,
+            Highlight    = false,
+            Pushed       = false,
+            Disabled     = false,
+            Checked      = false,
+            AutoCastable = false,
+            Flash        = false,
+            Backdrop     = false,
+            Name         = false,
+            Count        = false,
+            Duration     = false,
+            HotKey       = false,
+            AutoCast     = false,
+        }, "Action")
+        f._masqueGroup = group
+    end
 
     f:Hide()
     return f
@@ -149,7 +207,6 @@ local function SectionHeight(section)
     return SECTION_SIZES[section] or 20
 end
 
--- Master layout: stacks sections bottom-to-top in reverse layoutOrder
 function BM.LayoutAll()
     if not BM.MainFrame then return end
     local db = BM.db
@@ -157,7 +214,6 @@ function BM.LayoutAll()
     local order = db.layoutOrder or BM.SECTIONS
     local y = 0
 
-    -- Stack from bottom: iterate order in reverse (last = bottom)
     for i = #order, 1, -1 do
         local section = order[i]
         if SectionHasContent(section) then
@@ -198,7 +254,6 @@ local function RefreshViewerMirror(viewerName)
     local viewer = _G[viewerName]
     if not viewer or not viewer.itemFramePool then return end
 
-    -- Find which section this viewer maps to
     local section
     for sec, vn in pairs(SECTION_VIEWER_MAP) do
         if vn == viewerName then section = sec; break end
@@ -238,7 +293,7 @@ local function RefreshViewerMirror(viewerName)
                 idx = idx + 1
                 local ic = icons[idx]
                 if not ic then
-                    ic = CreateMirrorIcon(container, size)
+                    ic = CreateMirrorIcon(container, size, section)
                     icons[idx] = ic
                 end
                 ic:SetSize(size, size)
@@ -362,7 +417,6 @@ refreshFrame:SetScript("OnUpdate", function(self, elapsed)
     end
 end)
 
--- Swap two adjacent sections in layoutOrder
 function BM.SwapSectionOrder(sectionKey, direction)
     local order = BM.db.layoutOrder
     for i, key in ipairs(order) do
