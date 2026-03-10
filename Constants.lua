@@ -284,5 +284,5 @@ BM.DefaultDB = {
     iconSize        = 36,
     procImageSize   = 80,
     soundVolume     = 1.0,
-    visibility      = "combat",
+    visibility      = "always",
 }
