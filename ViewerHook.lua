@@ -28,6 +28,97 @@ for _, list in pairs(SECTION_TO_VIEWERS) do
 end
 
 ---------------------------------------------------------------------------
+-- Masque integration (soft dependency)
+---------------------------------------------------------------------------
+local Masque = LibStub and LibStub("Masque", true)
+local masqueGroups = {}
+local masqueRegistered = {} -- frame -> true, avoid double-registering
+
+if Masque then
+    masqueGroups.essential = Masque:Group("ForFeralSake", "核心技能 Essential")
+    masqueGroups.buff      = Masque:Group("ForFeralSake", "增益/触发 Buff")
+    masqueGroups.utility   = Masque:Group("ForFeralSake", "工具技能 Utility")
+end
+
+local function ResolveIconTexture(frame)
+    local icon = frame.Icon
+    if not icon then return nil end
+    if icon.SetTexCoord then return icon end
+    if icon.Icon and icon.Icon.SetTexCoord then return icon.Icon end
+    if icon.GetRegions then
+        for _, region in pairs({ icon:GetRegions() }) do
+            if region.SetTexCoord then return region end
+        end
+    end
+    return nil
+end
+
+local function StripAllBlizzardDecor(frame, iconTex)
+    local function NukeDecorations(parent)
+        if not parent or not parent.GetRegions then return end
+        for _, region in pairs({ parent:GetRegions() }) do
+            if region and region ~= iconTex
+                and region.IsObjectType and region:IsObjectType("Texture")
+                and region ~= (frame.Cooldown) then
+                region:SetTexture(nil)
+                region:SetAlpha(0)
+                region:Hide()
+            end
+        end
+    end
+    NukeDecorations(frame)
+    if frame.Icon and frame.Icon ~= iconTex and frame.Icon.GetRegions then
+        NukeDecorations(frame.Icon)
+    end
+end
+
+local function MasqueSkinFrame(frame, section)
+    if not Masque then return end
+    if not FFS.db.useMasque then return end
+    local group = masqueGroups[section]
+    if not group then return end
+    if masqueRegistered[frame] then return end
+
+    local iconTex = ResolveIconTexture(frame)
+    if not iconTex then return end
+
+    masqueRegistered[frame] = true
+    StripAllBlizzardDecor(frame, iconTex)
+
+    if not frame.__ffsNormal then
+        local normal = frame:CreateTexture(nil, "BORDER")
+        normal:SetAllPoints()
+        frame.__ffsNormal = normal
+    end
+
+    local regions = {
+        Icon = iconTex,
+        Cooldown = frame.Cooldown or false,
+        Normal = frame.__ffsNormal,
+        Border = false,
+        Count = frame.Count or false,
+    }
+    group:AddButton(frame, regions, "Aura")
+end
+
+function FFS.ReskinMasque()
+    if not Masque then return end
+    for _, group in pairs(masqueGroups) do
+        group:ReSkin()
+    end
+end
+
+function FFS.RemoveAllMasque()
+    if not Masque then return end
+    for frame, _ in pairs(masqueRegistered) do
+        for _, group in pairs(masqueGroups) do
+            group:RemoveButton(frame)
+        end
+    end
+    wipe(masqueRegistered)
+end
+
+---------------------------------------------------------------------------
 -- IsSafeNumber
 ---------------------------------------------------------------------------
 local function IsSafeNumber(value)
@@ -223,15 +314,13 @@ local function LayoutSection(section)
     f:SetSize(totalW, iconSz)
 
     for idx, frame in ipairs(frames) do
-        -- Reparent to UIParent (not our container) to avoid disrupting
-        -- Blizzard's viewer layout calculations. Position relative to
-        -- our container frame so they move with it when dragged.
         frame:SetParent(UIParent)
         frame:ClearAllPoints()
         frame:SetSize(iconSz, iconSz)
         frame:SetPoint("LEFT", f, "LEFT", (idx - 1) * (iconSz + spacing), 0)
         frame:SetFrameStrata("MEDIUM")
         frame:SetFrameLevel(f:GetFrameLevel() + 2)
+        MasqueSkinFrame(frame, section)
     end
 
     local unlocked = not FFS.db.locked

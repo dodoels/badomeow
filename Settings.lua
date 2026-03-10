@@ -247,6 +247,38 @@ local function CreateOptionsPanel()
     Divider()
 
     ---------------------------------------------------------------------------
+    -- Masque
+    ---------------------------------------------------------------------------
+    Header("皮肤 / Masque")
+    if LibStub and LibStub("Masque", true) then
+        InfoText("检测到 Masque — 在 Masque 设置中选择 ForFeralSake 分组来更换皮肤。")
+        do
+            local y = NextY(28)
+            local cb = CreateFrame("CheckButton", "ffsCB_useMasque", content, "UICheckButtonTemplate")
+            cb:SetPoint("TOPLEFT", content, "TOPLEFT", 10, y)
+            cb:SetSize(26, 26)
+            local text = cb:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+            text:SetPoint("LEFT", cb, "RIGHT", 4, 0)
+            text:SetText("启用 Masque 皮肤")
+            cb:SetChecked(FFS.db.useMasque)
+            cb:SetScript("OnClick", function(self)
+                FFS.db.useMasque = self:GetChecked() and true or false
+                if FFS.db.useMasque then
+                    if FFS.ReskinMasque then FFS.ReskinMasque() end
+                else
+                    if FFS.RemoveAllMasque then FFS.RemoveAllMasque() end
+                end
+                FFS.RefreshAll()
+            end)
+        end
+        InfoText("提示: 使用 /msq 打开 Masque 设置界面选择皮肤。")
+    else
+        InfoText("|cFF888888未检测到 Masque 插件 — 安装 Masque 后可使用自定义皮肤（如圆形图标）。|r")
+    end
+
+    Divider()
+
+    ---------------------------------------------------------------------------
     -- Icon sizes
     ---------------------------------------------------------------------------
     Header("图标尺寸")
