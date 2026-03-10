@@ -111,7 +111,7 @@ local function MakeDraggable(frame, section)
         self:StopMovingOrSizing()
         local newX, newY = NormalizeToCenterOffset(self)
 
-        local moveAll = IsShiftKeyDown() or BM.db.globalMove
+        local moveAll = IsShiftKeyDown()
         if moveAll and self._dragStartCX and self._dragStartCY then
             local dx = newX - self._dragStartCX
             local dy = newY - self._dragStartCY

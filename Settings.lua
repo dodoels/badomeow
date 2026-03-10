@@ -143,10 +143,89 @@ local function CreateOptionsPanel()
             if BM.UpdateSectionLockState then BM.UpdateSectionLockState() end
         end)
     end
-    Checkbox("全局移动 (拖一个=拖全部)", "globalMove")
-    InfoText("开启后拖动任意组件，所有组件一起移动。关闭则各自独立移动（Shift+拖仍可整体移动）。")
-    InfoText("右键任意已解锁组件 = 快速锁定/解锁。")
+    InfoText("右键任意已解锁组件 = 快速锁定/解锁。Shift+拖动 = 整体移动。")
     Slider("整体缩放", "scale", 0.5, 2.0, 0.1, "%.1f")
+
+    Spacer(4)
+    InfoText("全局偏移 — 同时移动所有组件位置")
+    do
+        local lastGX = BM.db.globalOffsetX or 0
+        local lastGY = BM.db.globalOffsetY or 0
+
+        local function ApplyGlobalOffset(axis, newVal)
+            local oldVal
+            if axis == "x" then oldVal = lastGX else oldVal = lastGY end
+            local delta = newVal - oldVal
+            if delta == 0 then return end
+
+            for _, sec in ipairs(BM.SECTIONS) do
+                local key = "pos_" .. sec
+                local pos = BM.db[key]
+                if pos then
+                    if axis == "x" then
+                        pos.x = (pos.x or 0) + delta
+                    else
+                        pos.y = (pos.y or 0) + delta
+                    end
+                end
+                local f = BM.sectionFrames and BM.sectionFrames[sec]
+                if f and pos then
+                    f:ClearAllPoints()
+                    f:SetPoint("CENTER", UIParent, "CENTER", pos.x, pos.y)
+                end
+            end
+
+            if axis == "x" then lastGX = newVal else lastGY = newVal end
+        end
+
+        local yGX = NextY(50)
+        local lblGX = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        lblGX:SetPoint("TOPLEFT", content, "TOPLEFT", 10, yGX)
+        lblGX:SetText("全局 X 偏移")
+
+        local sGX = CreateFrame("Slider", "badomeowSlider_globalOffsetX", content, "OptionsSliderTemplate")
+        sGX:SetPoint("TOPLEFT", content, "TOPLEFT", 200, yGX - 2)
+        sGX:SetSize(200, 17)
+        sGX:SetMinMaxValues(-800, 800)
+        sGX:SetValueStep(1)
+        sGX:SetObeyStepOnDrag(true)
+        sGX:SetValue(BM.db.globalOffsetX or 0)
+        sGX.Low:SetText("-800")
+        sGX.High:SetText("800")
+        local vGX = sGX:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        vGX:SetPoint("TOP", sGX, "BOTTOM", 0, -2)
+        vGX:SetText(tostring(BM.db.globalOffsetX or 0))
+        sGX:SetScript("OnValueChanged", function(self, v)
+            v = math.floor(v + 0.5)
+            BM.db.globalOffsetX = v
+            vGX:SetText(tostring(v))
+            ApplyGlobalOffset("x", v)
+        end)
+
+        local yGY = NextY(50)
+        local lblGY = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        lblGY:SetPoint("TOPLEFT", content, "TOPLEFT", 10, yGY)
+        lblGY:SetText("全局 Y 偏移")
+
+        local sGY = CreateFrame("Slider", "badomeowSlider_globalOffsetY", content, "OptionsSliderTemplate")
+        sGY:SetPoint("TOPLEFT", content, "TOPLEFT", 200, yGY - 2)
+        sGY:SetSize(200, 17)
+        sGY:SetMinMaxValues(-600, 600)
+        sGY:SetValueStep(1)
+        sGY:SetObeyStepOnDrag(true)
+        sGY:SetValue(BM.db.globalOffsetY or 0)
+        sGY.Low:SetText("-600")
+        sGY.High:SetText("600")
+        local vGY = sGY:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        vGY:SetPoint("TOP", sGY, "BOTTOM", 0, -2)
+        vGY:SetText(tostring(BM.db.globalOffsetY or 0))
+        sGY:SetScript("OnValueChanged", function(self, v)
+            v = math.floor(v + 0.5)
+            BM.db.globalOffsetY = v
+            vGY:SetText(tostring(v))
+            ApplyGlobalOffset("y", v)
+        end)
+    end
 
     Divider()
 
@@ -242,9 +321,10 @@ local function CreateOptionsPanel()
     InfoText("别名: /badomeow, /bado（与 /bdm 功能相同）")
     Spacer(4)
     InfoText("解锁后操作:")
-    InfoText("  左键拖动 — 移动单个组件（全局移动开启时移动全部）")
-    InfoText("  Shift + 左键拖动 — 强制整体移动所有组件")
+    InfoText("  左键拖动 — 移动单个组件")
+    InfoText("  Shift + 左键拖动 — 整体移动所有组件")
     InfoText("  右键点击任意组件 — 快速切换锁定/解锁")
+    InfoText("  全局 X/Y 偏移滑块 — 精确移动所有组件")
 
     Divider()
 
