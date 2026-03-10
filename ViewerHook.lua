@@ -76,16 +76,15 @@ local function SaveSectionPos(section)
     BM.db[GetPosKey(section)].y = y
 end
 
--- Convert frame position to CENTER-relative offset after StopMovingOrSizing
--- WoW changes the anchor after dragging, so we normalize back to CENTER
+-- After StopMovingOrSizing, WoW changes the anchor arbitrarily.
+-- Use GetCenter() (always returns correct screen coords) to compute
+-- CENTER-relative offset, following the Ayije_CDM pattern.
 local function NormalizeToCenterOffset(frame)
-    local scale = frame:GetEffectiveScale()
-    local parentScale = UIParent:GetEffectiveScale()
-    local screenW, screenH = UIParent:GetSize()
-    local cx = frame:GetLeft() * scale / parentScale + (frame:GetWidth() * scale / parentScale) / 2
-    local cy = frame:GetBottom() * scale / parentScale + (frame:GetHeight() * scale / parentScale) / 2
-    local offX = cx - screenW / 2
-    local offY = cy - screenH / 2
+    local cx, cy = frame:GetCenter()
+    local pcx, pcy = UIParent:GetCenter()
+    if not cx or not pcx then return 0, 0 end
+    local offX = cx - pcx
+    local offY = cy - pcy
     frame:ClearAllPoints()
     frame:SetPoint("CENTER", UIParent, "CENTER", offX, offY)
     return offX, offY
