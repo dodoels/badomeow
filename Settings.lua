@@ -221,6 +221,22 @@ local function CreateOptionsPanel()
     ---------------------------------------------------------------------------
     -- About
     ---------------------------------------------------------------------------
+    Header("命令列表")
+    InfoText("/bdm — 打开此设置面板")
+    InfoText("/bdm lock — 锁定所有组件")
+    InfoText("/bdm unlock — 解锁所有组件（可拖动）")
+    InfoText("/bdm reset — 重置所有组件位置到默认")
+    InfoText("/bdm debug — 打印 CooldownViewer 状态（调试用）")
+    Spacer(4)
+    InfoText("别名: /badomeow, /bado（与 /bdm 功能相同）")
+    Spacer(4)
+    InfoText("解锁后操作:")
+    InfoText("  左键拖动 — 移动单个组件")
+    InfoText("  Shift + 左键拖动 — 整体移动所有组件")
+    InfoText("  右键点击任意组件 — 快速切换锁定/解锁")
+
+    Divider()
+
     Header("关于")
     InfoText("badomeow v" .. BM.VERSION .. " | MIT License")
     InfoText("基于暴雪 CooldownViewer 系统，自动同步所有职业/专精技能数据")
