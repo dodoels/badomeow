@@ -175,10 +175,6 @@ local function CreateOptionsPanel()
     Slider(L["BAR_WIDTH"] or "条宽度", "barWidth", 150, 450, 10)
     Slider(L["BAR_HEIGHT"] or "条高度", "barHeight", 10, 40, 2)
 
-    Header(L["ALERTS"] or "提示与音效")
-    Checkbox(L["PLAY_PROC_SOUND"] or "触发时播放音效", "playProcSound")
-    Checkbox(L["PLAY_CD_SOUND"] or "冷却结束播放音效", "playCdSound")
-
     NextY(10)
     Button(L["RESET_POSITION"] or "重置位置", function()
         BM.db.mainFrameX = 0
@@ -197,11 +193,11 @@ local function CreateOptionsPanel()
     end)
 
     Button("解锁框体 (拖动移动)", function()
-        BM.db.locked = false
-        if BM.MainFrame then
-            BM.MainFrame:SetMovable(true)
-            BM.MainFrame:EnableMouse(true)
+        if InCombatLockdown() then
+            print("|cFFFF5555badomeow:|r 战斗中无法解锁")
+            return
         end
+        BM.db.locked = false
         BM.UpdateVisibility()
         print("|cFF00FF00badomeow:|r 框体已解锁，可以拖动，右键点击锁定")
     end)

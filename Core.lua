@@ -33,7 +33,6 @@ function BM.GetCurrentSpecID()
     return currentSpecID
 end
 
--- Returns effective resource data based on shapeshift form
 function BM.GetEffectiveResourceData()
     local formID = GetShapeshiftFormID()
     if formID == CAT_FORM then
@@ -54,7 +53,6 @@ function BM.GetEffectiveResourceData()
         }
     end
 
-    -- Fallback to spec default
     if currentSpecID == 102 then
         return {
             powerType = Enum.PowerType.LunarPower,
@@ -96,6 +94,13 @@ local function ShouldShow()
     return true
 end
 
+-- Safe wrappers: never call SetMovable/EnableMouse in combat
+local function SafeSetMovable(frame, movable)
+    if InCombatLockdown() then return end
+    frame:SetMovable(movable)
+    frame:EnableMouse(movable)
+end
+
 function BM.UpdateVisibility()
     if not MainFrame then return end
     local shouldShow = ShouldShow()
@@ -118,6 +123,7 @@ function BM.UpdateVisibility()
         end
     end
 
+    SafeSetMovable(MainFrame, not BM.db.locked)
     if BM.LayoutAll then BM.LayoutAll() end
 end
 
@@ -160,12 +166,11 @@ local function SetupMainFrame()
     MainFrame.title:SetTextColor(0.6, 0.8, 0.4, 0.5)
     MainFrame.title:Hide()
 
-    MainFrame:EnableMouse(not db.locked)
-    MainFrame:SetMovable(not db.locked)
+    SafeSetMovable(MainFrame, not db.locked)
     MainFrame:RegisterForDrag("LeftButton")
 
     MainFrame:SetScript("OnDragStart", function(self)
-        if not BM.db.locked then self:StartMoving() end
+        if not BM.db.locked and not InCombatLockdown() then self:StartMoving() end
     end)
     MainFrame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
@@ -174,10 +179,9 @@ local function SetupMainFrame()
         BM.db.mainFrameY = y
     end)
     MainFrame:SetScript("OnMouseUp", function(self, button)
-        if button == "RightButton" then
+        if button == "RightButton" and not InCombatLockdown() then
             BM.db.locked = not BM.db.locked
-            self:SetMovable(not BM.db.locked)
-            self:EnableMouse(not BM.db.locked)
+            SafeSetMovable(self, not BM.db.locked)
             local msg = BM.db.locked and (L and L["LOCK_FRAME"] or "Locked") or (L and L["UNLOCK_FRAME"] or "Unlocked")
             print("|cFF00FF00badomeow:|r " .. msg)
             BM.UpdateVisibility()
@@ -187,24 +191,14 @@ local function SetupMainFrame()
     MainFrame:Hide()
 end
 
--- Sound system
-function BM.PlayAlertSound(soundType)
-    if not BM.db.playProcSound and soundType ~= "cd" then return end
-    if not BM.db.playCdSound and soundType == "cd" then return end
-    local soundID
-    if soundType == "proc" then soundID = 888
-    elseif soundType == "alert" then soundID = 12889
-    elseif soundType == "cd" then soundID = 43487
-    end
-    if soundID then PlaySound(soundID, "SFX") end
-end
+-- Sound disabled
+function BM.PlayAlertSound() end
 
 function BM.RefreshAll()
     if not MainFrame then return end
     local db = BM.db
     MainFrame:SetScale(db.scale)
-    MainFrame:EnableMouse(not db.locked)
-    MainFrame:SetMovable(not db.locked)
+    SafeSetMovable(MainFrame, not db.locked)
     if BM.RebuildResourceBars then BM.RebuildResourceBars() end
     BM.UpdateVisibility()
 end
@@ -215,7 +209,6 @@ local function InitDB()
     BM.db = badomeowDB
 end
 
--- Retry hooking viewers until all exist (Blizzard creates them lazily)
 local MAX_HOOK_RETRIES = 20
 local function RetryViewerHooks(attempt)
     if not BM.InitViewerHooks then return end
@@ -241,6 +234,7 @@ EventFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
 EventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
 EventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORMS")
 EventFrame:RegisterEvent("LOADING_SCREEN_DISABLED")
+EventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 
 EventFrame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == addonName then
@@ -270,6 +264,10 @@ EventFrame:SetScript("OnEvent", function(self, event, arg1)
         if not isDruid then return end
         RetryViewerHooks(1)
 
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        if not isDruid or not MainFrame then return end
+        SafeSetMovable(MainFrame, not BM.db.locked)
+
     elseif event == "PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then
         if isDruid then OnSpecChanged() end
 
@@ -278,7 +276,7 @@ EventFrame:SetScript("OnEvent", function(self, event, arg1)
     end
 end)
 
--- Slash commands (MRT/DBM pattern)
+-- Slash commands
 SlashCmdList["BADOMEOW"] = function(msg)
     if not isDruid then
         print("|cFFFF5555badomeow:|r 此插件仅适用于德鲁伊职业")
@@ -291,12 +289,12 @@ SlashCmdList["BADOMEOW"] = function(msg)
     msg = strtrim(msg or ""):lower()
     if msg == "lock" then
         BM.db.locked = true
-        MainFrame:SetMovable(false); MainFrame:EnableMouse(false)
+        SafeSetMovable(MainFrame, false)
         print("|cFF00FF00badomeow:|r " .. (L and L["LOCK_FRAME"] or "Locked"))
         BM.UpdateVisibility()
     elseif msg == "unlock" then
         BM.db.locked = false
-        MainFrame:SetMovable(true); MainFrame:EnableMouse(true)
+        SafeSetMovable(MainFrame, true)
         print("|cFF00FF00badomeow:|r " .. (L and L["UNLOCK_FRAME"] or "Unlocked"))
         BM.UpdateVisibility()
     elseif msg == "reset" then
@@ -315,16 +313,15 @@ SlashCmdList["BADOMEOW"] = function(msg)
                         if frame:IsShown() then count = count + 1 end
                     end
                 end
-                print("  " .. key .. " (" .. vName .. "): |cFF00FF00EXISTS|r, active frames: " .. count)
+                print("  " .. key .. " (" .. vName .. "): |cFF00FF00EXISTS|r, active=" .. count)
             else
                 print("  " .. key .. " (" .. vName .. "): |cFFFF5555NOT FOUND|r")
             end
         end
-        print("|cFF00FF00badomeow debug:|r MainFrame shown: " .. tostring(MainFrame and MainFrame:IsShown()))
-        print("|cFF00FF00badomeow debug:|r specID: " .. tostring(currentSpecID) .. ", locked: " .. tostring(BM.db.locked))
+        print("|cFF00FF00badomeow debug:|r shown=" .. tostring(MainFrame:IsShown()) .. " spec=" .. currentSpecID .. " combat=" .. tostring(InCombatLockdown()))
     else
         if BM.OpenSettings then BM.OpenSettings()
-        else print("|cFF00FF00badomeow:|r /bdm lock | unlock | reset") end
+        else print("|cFF00FF00badomeow:|r /bdm lock | unlock | reset | debug") end
     end
 end
 SLASH_BADOMEOW1 = "/bdm"

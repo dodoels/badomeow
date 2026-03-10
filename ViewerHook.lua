@@ -245,7 +245,7 @@ end
 
 -- Collect all active Blizzard frames from the viewer(s) that feed a section,
 -- then create/update mirror icons sequentially in one container.
-local function RefreshSection(section)
+local function RefreshSection(section, skipLayout)
     local container = EnsureContainer(section)
     if not container then return end
 
@@ -313,9 +313,6 @@ local function RefreshSection(section)
                 ic.glow:Show()
                 if not ic.glowPulse:IsPlaying() then ic.glowPulse:Play() end
                 ic.icon:SetDesaturated(false)
-                if not prevActiveBuffs[spellID] then
-                    BM.PlayAlertSound("proc")
-                end
                 currentActiveBuffs[spellID] = true
             else
                 ic.glow:Hide()
@@ -355,7 +352,9 @@ local function RefreshSection(section)
     else
         container:Hide()
     end
-    BM.LayoutAll()
+    if not skipLayout then
+        BM.LayoutAll()
+    end
 end
 
 -- When any viewer fires, refresh the entire section it belongs to
@@ -417,7 +416,8 @@ local function HookMixins()
     hookedMixins.done = true
 end
 
--- Periodic fallback refresh
+-- Periodic fallback: refresh each section once (not per-viewer)
+local ALL_ICON_SECTIONS = { "essential", "buff", "utility" }
 local refreshTimer = 0
 local refreshFrame = CreateFrame("Frame")
 refreshFrame:SetScript("OnUpdate", function(self, elapsed)
@@ -425,8 +425,8 @@ refreshFrame:SetScript("OnUpdate", function(self, elapsed)
     if refreshTimer < 0.15 then return end
     refreshTimer = 0
     if not BM.MainFrame or not BM.MainFrame:IsShown() then return end
-    for _, vName in ipairs(ALL_VIEWER_NAMES) do
-        if _G[vName] then OnViewerChanged(vName) end
+    for _, section in ipairs(ALL_ICON_SECTIONS) do
+        RefreshSection(section)
     end
 end)
 
