@@ -170,8 +170,10 @@ local function CreateOptionsPanel()
                 end
                 local f = BM.sectionFrames and BM.sectionFrames[sec]
                 if f and pos then
+                    local pt = pos.point or "CENTER"
+                    local rpt = pos.relPoint or "CENTER"
                     f:ClearAllPoints()
-                    f:SetPoint("CENTER", UIParent, "CENTER", pos.x, pos.y)
+                    f:SetPoint(pt, UIParent, rpt, pos.x or 0, pos.y or 0)
                 end
             end
 

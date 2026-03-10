@@ -68,73 +68,43 @@ end
 local function GetPosKey(section) return "pos_" .. section end
 
 local function SaveSectionPos(section)
-    local f = sectionFrames[section]
-    if not f then return end
-    local _, _, relTo, x, y = f:GetPoint()
-    if not BM.db[GetPosKey(section)] then BM.db[GetPosKey(section)] = {} end
-    BM.db[GetPosKey(section)].x = x
-    BM.db[GetPosKey(section)].y = y
+    SaveRawPos(section)
 end
 
--- After StopMovingOrSizing, WoW changes the anchor arbitrarily.
--- Use GetCenter() to get screen coords, then convert to CENTER offset.
--- GetCenter() returns coords in the parent's coordinate space, but
--- SetPoint offsets are in the frame's own scaled space, so we must
--- divide by the frame's scale factor.
-local function NormalizeToCenterOffset(frame)
-    local cx, cy = frame:GetCenter()
-    local pcx, pcy = UIParent:GetCenter()
-    if not cx or not pcx then return 0, 0 end
-    local s = frame:GetScale()
-    local offX = (cx - pcx) / s
-    local offY = (cy - pcy) / s
-    frame:ClearAllPoints()
-    frame:SetPoint("CENTER", UIParent, "CENTER", offX, offY)
-    return offX, offY
+-- Save position as the raw point/relPoint/x/y that WoW assigns after drag
+local function SaveRawPos(section)
+    local f = sectionFrames[section]
+    if not f then return end
+    local point, _, relPoint, x, y = f:GetPoint()
+    local key = GetPosKey(section)
+    BM.db[key] = { point = point, relPoint = relPoint, x = x, y = y }
+end
+
+local function ApplyPos(section)
+    local f = sectionFrames[section]
+    if not f then return end
+    local pos = BM.db[GetPosKey(section)]
+    if not pos then return end
+    f:ClearAllPoints()
+    if pos.point and pos.relPoint then
+        f:SetPoint(pos.point, UIParent, pos.relPoint, pos.x or 0, pos.y or 0)
+    else
+        f:SetPoint("CENTER", UIParent, "CENTER", pos.x or 0, pos.y or 0)
+    end
 end
 
 local function MakeDraggable(frame, section)
     frame:SetMovable(true)
     frame:EnableMouse(true)
     frame:RegisterForDrag("LeftButton")
-    frame._dragStartCX = nil
-    frame._dragStartCY = nil
     frame:SetScript("OnDragStart", function(self)
         if not BM.db.locked and not InCombatLockdown() then
-            local pos = BM.db[GetPosKey(section)]
-            if pos then
-                self._dragStartCX = pos.x
-                self._dragStartCY = pos.y
-            end
             self:StartMoving()
         end
     end)
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        local newX, newY = NormalizeToCenterOffset(self)
-
-        local moveAll = IsShiftKeyDown()
-        if moveAll and self._dragStartCX and self._dragStartCY then
-            local dx = newX - self._dragStartCX
-            local dy = newY - self._dragStartCY
-            for _, sec in ipairs(BM.SECTIONS) do
-                local sf = sectionFrames[sec]
-                if sf and sf ~= self then
-                    local p = BM.db[GetPosKey(sec)]
-                    if p then
-                        local nx = p.x + dx
-                        local ny = p.y + dy
-                        sf:ClearAllPoints()
-                        sf:SetPoint("CENTER", UIParent, "CENTER", nx, ny)
-                        BM.db[GetPosKey(sec)].x = nx
-                        BM.db[GetPosKey(sec)].y = ny
-                    end
-                end
-            end
-        end
-        SaveSectionPos(section)
-        self._dragStartCX = nil
-        self._dragStartCY = nil
+        SaveRawPos(section)
     end)
     frame:SetScript("OnMouseUp", function(self, button)
         if button == "RightButton" and not InCombatLockdown() then
@@ -155,8 +125,13 @@ local function EnsureSectionFrame(section)
     f:SetClampedToScreen(true)
 
     local db = BM.db
-    local pos = db[GetPosKey(section)] or { x = 0, y = -200 }
-    f:SetPoint("CENTER", UIParent, "CENTER", pos.x, pos.y)
+    local pos = db[GetPosKey(section)]
+    if pos and pos.point and pos.relPoint then
+        f:SetPoint(pos.point, UIParent, pos.relPoint, pos.x or 0, pos.y or 0)
+    else
+        local defPos = pos or { x = 0, y = -200 }
+        f:SetPoint("CENTER", UIParent, "CENTER", defPos.x or 0, defPos.y or 0)
+    end
     f:SetScale(db.scale or 1)
     f:SetSize(100, 30)
 
@@ -364,11 +339,13 @@ function BM.ResetAllPositions()
     for _, sec in ipairs(BM.SECTIONS) do
         local key = GetPosKey(sec)
         local def = defaults[key] or { x = 0, y = -200 }
-        BM.db[key] = { x = def.x, y = def.y }
+        BM.db[key] = { point = "CENTER", relPoint = "CENTER", x = def.x, y = def.y }
         local f = sectionFrames[sec]
         if f then
             f:ClearAllPoints()
             f:SetPoint("CENTER", UIParent, "CENTER", def.x, def.y)
         end
     end
+    BM.db.globalOffsetX = 0
+    BM.db.globalOffsetY = 0
 end
