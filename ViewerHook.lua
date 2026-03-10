@@ -53,6 +53,37 @@ local function ResolveIconTexture(frame)
     return nil
 end
 
+local BLIZZARD_OVERLAY_ATLAS = "UI-HUD-CoolDownManager-IconOverlay"
+local BLIZZARD_OVERLAY_FILEID = 6707800
+
+local function HideBlizzardOverlays(frame)
+    local regions = { frame:GetRegions() }
+    for _, region in ipairs(regions) do
+        if region and region.IsObjectType and region:IsObjectType("Texture") then
+            local atlas = region.GetAtlas and region:GetAtlas()
+            local tex = region.GetTexture and region:GetTexture()
+            if atlas == BLIZZARD_OVERLAY_ATLAS or tex == BLIZZARD_OVERLAY_FILEID then
+                region:SetAlpha(0)
+                region:Hide()
+            end
+        end
+    end
+    local icon = frame.Icon
+    if icon and icon.GetRegions then
+        local iconRegions = { icon:GetRegions() }
+        for _, region in ipairs(iconRegions) do
+            if region and region.IsObjectType and region:IsObjectType("Texture") then
+                local atlas = region.GetAtlas and region:GetAtlas()
+                local tex = region.GetTexture and region:GetTexture()
+                if atlas == BLIZZARD_OVERLAY_ATLAS or tex == BLIZZARD_OVERLAY_FILEID then
+                    region:SetAlpha(0)
+                    region:Hide()
+                end
+            end
+        end
+    end
+end
+
 local function MasqueSkinFrame(frame, section)
     if not Masque then return end
     if not FFS.db.useMasque then return end
@@ -64,6 +95,7 @@ local function MasqueSkinFrame(frame, section)
     if not iconTex then return end
 
     masqueRegistered[frame] = true
+    HideBlizzardOverlays(frame)
 
     local regions = {
         Icon = iconTex,
