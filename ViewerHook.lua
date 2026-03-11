@@ -431,6 +431,17 @@ function FFS.ResetAllPositions()
             f:SetPoint("CENTER", UIParent, "CENTER", def.x, def.y)
         end
     end
+    if FFS.db.overlays then
+        for i, cfg in ipairs(FFS.db.overlays) do
+            if cfg then
+                cfg.point = "CENTER"
+                cfg.relPoint = "CENTER"
+                cfg.x = 0
+                cfg.y = -200
+            end
+        end
+    end
+    if FFS.RefreshOverlays then FFS.RefreshOverlays() end
     FFS.db.globalOffsetX = 0
     FFS.db.globalOffsetY = 0
 end

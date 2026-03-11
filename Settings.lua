@@ -236,6 +236,23 @@ local function CreateOptionsPanel()
                 end
             end
 
+            if FFS.db.overlays then
+                for i, cfg in ipairs(FFS.db.overlays) do
+                    if cfg then
+                        if axis == "x" then
+                            cfg.x = (cfg.x or 0) + delta
+                        else
+                            cfg.y = (cfg.y or 0) + delta
+                        end
+                        local f = FFS.overlayFrames and FFS.overlayFrames[i]
+                        if f and cfg.enabled then
+                            f:ClearAllPoints()
+                            f:SetPoint(cfg.point or "CENTER", UIParent, cfg.relPoint or "CENTER", cfg.x or 0, cfg.y or 0)
+                        end
+                    end
+                end
+            end
+
             if axis == "x" then lastGX = newVal else lastGY = newVal end
         end
 
